@@ -1,0 +1,102 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}{{ super() }} - Liste des joueurs{% endblock page_title %}
+
+{% block title %}Liste des joueurs{% endblock title %}
+
+{% block content %}
+<form action="/admin" method="post">
+  <nord-card padding="none">
+    <h2 slot="header">List des joueurs</h2>
+
+    <nord-stack slot="header-end" direction="horizontal" gap="s">
+      {% if request.args.get("edit") %}
+      <nord-button name="save" size="s" variant="primary">Sauvegarder</nord-button>
+      <nord-button name="cancel" size="s">Annuler</nord-button>
+      {% else %}
+      <nord-button name="edit" size="s">Modifier</nord-button>
+      {% endif %}
+    </nord-stack>
+
+    <nord-table>
+      <table>
+        <thead>
+          <tr>
+            <th>Pseudo Discord</th>
+            <th>ID Discord</th>
+            <th>ID Steam</th>
+            <th>Pondération</th>
+            <th>Smoke</th>
+            <th>Équipe</th>
+            <th>Présence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for member in members %}
+          <td>{{ member.discord_name }}</td>
+
+
+          {% if request.args.get("edit") %}
+          <td><nord-input name="discord_id" readonly hide-label value="{{ member.discord_id }}" />
+          <td><nord-input name="steam_id" hide-label disallow-pattern="[^0-9]" value="{{ member.steam_id or '' }}" />
+          </td>
+          <td><nord-input name="weight" hide-label disallow-pattern="[^0-9]" value="{{ member.weight }}"
+              style="--n-input-inline-size: 65px" /></td>
+          <td>
+            <nord-select name="smoke_color" value="{{ member.smoke_color }}" hide-label>
+              {% for color in ["default", "red", "green", "blue", "yellow", "pink"] %}
+              <option value="{{ color }}">{{ smoke_en_to_fr(color) }}</option>
+              {% endfor %}
+            </nord-select>
+          </td>
+          {% else %}
+          <td name="discord_id" value="{{ member.discord_id }}" class="n-caption">{{ member.discord_id }}</td>
+          <td class="n-caption">{{ member.steam_id or "-" }}</td>
+          <td><nord-badge>{{ member.weight }}</nord-badge></td>
+          <td><nord-badge>{{ smoke_en_to_fr(member.smoke_color) }}</nord-badge></td>
+          {% endif %}
+
+          <td><nord-badge>{{ member.team_name }}</nord-badge></td>
+          <td><nord-icon
+              color="{{ 'var(--n-color-status-info)' if member.is_logged_in else 'var(--n-color-status-danger)' }}"
+              name="{{ 'interface-link' if member.is_logged_in else 'interface-unlink'}}"></nord-icon></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </nord-table>
+  </nord-card>
+</form>
+
+{% if not request.args.get("edit") %}
+<nord-stack gap="s" direction="horizontal" justify-content="end">
+  <form action="/admin/teams" method="post">
+    <nord-button variant="primary" name="generate-teams">Générer les équipes</nord-button>
+    <nord-button variant="default" name="clear-teams">Effacer les équipes</nord-button>
+  </form>
+</nord-stack>
+{% endif %}
+
+<style>
+  #content nord-card {
+    max-width: 950px;
+  }
+</style>
+{% endblock content %}
+
+{% macro smoke_en_to_fr(color) %}
+{% if color == "red" %} Rouge
+{% elif color == "green" %} Vert
+{% elif color == "blue" %} Bleu
+{% elif color == "yellow" %} Jaune
+{% elif color == "pink" %} Rose
+{% else %} Défaut
+{% endif %}
+{% endmacro %}
+
+{% macro side_name(side) %}
+{% if side == "ct_side" %} mayo
+{% elif side == "t_side" %} ketchup
+{% else %} aucune
+{% endif %}
+{% endmacro %}

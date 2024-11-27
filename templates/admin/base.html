@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}{% endblock %}
+
+{% block page_title %}Admin{% endblock %}
+
+{% block navigation %}
+<nord-navigation slot="nav">
+
+  <!-- HEADER -->
+
+  <nord-nav-group heading="Admin">
+    <nord-nav-item href="/admin" icon="user-single">Joueurs</nord-nav-item>
+    <nord-nav-item href="/admin/teams" icon="user-multiple">Équipes</nord-nav-item>
+  </nord-nav-group>
+  
+</nord-navigation>
+{% endblock %}
+
+{% block content %}{% endblock %}
