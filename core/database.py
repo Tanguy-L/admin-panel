@@ -8,7 +8,9 @@ def get_db():
             host=get_conf()["database"]["host"],
             user=get_conf()["database"]["username"],
             password=get_conf()["database"]["password"],
-            database=get_conf()["database"]["database"]
+            database=get_conf()["database"]["database"],
+            charset='utf8mb4',
+            collation='utf8mb4_general_ci',
         )
         g.cursor = g.db.cursor(dictionary=True)
     return g.db, g.cursor
