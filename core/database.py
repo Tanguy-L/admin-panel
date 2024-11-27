@@ -4,23 +4,71 @@ from core.settings import get_conf
 
 def get_db():
     if 'db' not in g:
-        g.db = mysql.connector.connect(
-            host=get_conf()["database"]["host"],
-            user=get_conf()["database"]["username"],
-            password=get_conf()["database"]["password"],
-            database=get_conf()["database"]["database"],
-            charset='utf8mb4',
-            collation='utf8mb4_general_ci',
-            pool_size=0,
-            pool_reset_session=False
-        )
-        g.cursor = g.db.cursor(dictionary=True)
+        try:
+            g.db = mysql.connector.connect(
+                host=get_conf()["database"]["host"],
+                user=get_conf()["database"]["username"],
+                password=get_conf()["database"]["password"],
+                database=get_conf()["database"]["database"],
+                charset='utf8mb4',
+                collation='utf8mb4_general_ci',
+                pool_name="mypool",
+                pool_size=5,               # Maximum number of connections in the pool
+                pool_reset_session=True,   # Reset session variables when connection is returned to pool
+                use_pure=True,            # Use pure Python implementation
+                connect_timeout=3,        # Connection timeout in seconds
+                pool_pre_ping=True        # Verify connection is active before using it
+            )
+            g.cursor = g.db.cursor(dictionary=True)
+        except mysql.connector.Error as err:
+            # If connection fails, try to reconnect
+            if 'db' in g:
+                g.pop('db', None)
+            if 'cursor' in g:
+                g.pop('cursor', None)
+            # Attempt reconnection
+            g.db = mysql.connector.connect(
+                host=get_conf()["database"]["host"],
+                user=get_conf()["database"]["username"],
+                password=get_conf()["database"]["password"],
+                database=get_conf()["database"]["database"],
+                charset='utf8mb4',
+                collation='utf8mb4_general_ci',
+                pool_name="mypool",
+                pool_size=5,
+                pool_reset_session=True,
+                use_pure=True,
+                connect_timeout=3,
+                pool_pre_ping=True
+            )
+            g.cursor = g.db.cursor(dictionary=True)
+            
+    # Verify connection is still alive
+    try:
+        g.db.ping(reconnect=True, attempts=1, delay=0)
+    except mysql.connector.Error:
+        # If ping fails, close old connection and create new one
+        close_db()
+        return get_db()
+        
     return g.db, g.cursor
 
 def close_db(e=None):
     db = g.pop('db', None)
     cursor = g.pop('cursor', None)
+    
     if cursor is not None:
-        cursor.close()
+        try:
+            cursor.close()
+        except mysql.connector.Error:
+            pass
+            
     if db is not None:
-        db.close()
+        try:
+            db.close()
+        except mysql.connector.Error:
+            pass
+
+# Make sure to register close_db with your Flask app
+def init_app(app):
+    app.teardown_appcontext(close_db)
