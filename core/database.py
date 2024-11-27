@@ -14,10 +14,7 @@ def get_db():
                 collation='utf8mb4_general_ci',
                 pool_name="mypool",
                 pool_size=5,               # Maximum number of connections in the pool
-                pool_reset_session=True,   # Reset session variables when connection is returned to pool
-                use_pure=True,            # Use pure Python implementation
-                connect_timeout=3,        # Connection timeout in seconds
-                pool_pre_ping=True        # Verify connection is active before using it
+                pool_reset_session=True    # Reset session variables when connection is returned to pool
             )
             g.cursor = g.db.cursor(dictionary=True)
         except mysql.connector.Error as err:
@@ -36,10 +33,7 @@ def get_db():
                 collation='utf8mb4_general_ci',
                 pool_name="mypool",
                 pool_size=5,
-                pool_reset_session=True,
-                use_pure=True,
-                connect_timeout=3,
-                pool_pre_ping=True
+                pool_reset_session=True
             )
             g.cursor = g.db.cursor(dictionary=True)
             
@@ -54,8 +48,8 @@ def get_db():
     return g.db, g.cursor
 
 def close_db(e=None):
-    db = g.pop('db', None)
     cursor = g.pop('cursor', None)
+    db = g.pop('db', None)
     
     if cursor is not None:
         try:
