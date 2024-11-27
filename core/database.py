@@ -11,6 +11,8 @@ def get_db():
             database=get_conf()["database"]["database"],
             charset='utf8mb4',
             collation='utf8mb4_general_ci',
+            pool_size=0,
+            pool_reset_session=False
         )
         g.cursor = g.db.cursor(dictionary=True)
     return g.db, g.cursor
