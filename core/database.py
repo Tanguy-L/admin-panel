@@ -8,6 +8,7 @@ def get_db():
             host=get_conf()["database"]["host"],
             user=get_conf()["database"]["username"],
             password=get_conf()["database"]["password"],
+            port=get_conf()["database"]["port"],
             database=get_conf()["database"]["database"]
         )
         g.cursor = g.db.cursor(dictionary=True)
