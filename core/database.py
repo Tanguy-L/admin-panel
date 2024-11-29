@@ -10,7 +10,7 @@ def get_db():
     if 'db' not in g:
         g.db = mysql.connector.connect(
             host=os.getenv('HOST'),
-            user=os.getenv('USER'),
+            user=os.getenv('USERNAME'),
             password=os.getenv('PASSWORD'),
             database=os.getenv('DATABASE'),
             port=os.getenv('PORT'),
