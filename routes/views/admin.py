@@ -1,7 +1,7 @@
 import json
 from flask import jsonify
 from flask import Blueprint, render_template, request, redirect
-from core.database import get_db, close_db
+from core.database import *
 from mysql.connector import Error
 
 views = Blueprint("admin_views", __name__, url_prefix="/admin")
