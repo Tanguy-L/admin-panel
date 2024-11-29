@@ -40,7 +40,7 @@ def change_team():
     print(f"{team_id}")
 
     try:
-        connection, cursor = get_db()
+        db, cursor = get_db()
         check_query = "SELECT COUNT(*) as count FROM team_members WHERE member_id = %s"
         cursor.execute(check_query, (member_id,))
         count = cursor.fetchall()[0]['count']
@@ -56,17 +56,17 @@ def change_team():
             cursor.execute(insert_query, (member_id, team_id))
             message = "New member added successfully"
 
-        connection.commit()
+        db.commit()
 
         return jsonify({"message": message}), 200
 
     except Exception as e:
-        connection.rollback()
+        db.rollback()
         print(f"Error while updating records: {e}")
         return jsonify({"error": str(e)}), 500
 
     finally:
-        close_db()
+        close_db(db)
 
 @views.route("/teams", methods=("GET", "POST"))
 def render_admin_teams():
@@ -99,7 +99,7 @@ def get_members():
         members = cursor.fetchall()
         return members
     finally:
-        close_db()
+        close_db(db)
 
 def element_exists(list_of_dicts, name_to_find):
     return next((item for item in list_of_dicts if item.get('name') == name_to_find), None)
@@ -138,7 +138,7 @@ def get_teams():
         
         return teams_result
     finally:
-        close_db()
+        close_db(db)
 
 def check_has_team_member(id):
     try:
@@ -151,12 +151,12 @@ def check_has_team_member(id):
         members = cursor.fetchall()
         return members
     finally:
-        close_db()
+        close_db(db)
 
 @views.route("/generate_teams", methods=("GET", "POST"))
 def generate_teams():
     try:
-        connection, cursor  = get_db()
+        db, cursor  = get_db()
 
         cursor.execute("SELECT * FROM members WHERE weight > 0 AND steam_id IS NOT NULL AND is_logged_in = 0 ORDER BY weight DESC")
         membersNotLogged = cursor.fetchall()
@@ -170,7 +170,7 @@ def generate_teams():
             if check_has_team_member(memberNotLogged["id"]):
                 update_query="UPDATE team_members SET team_id='%s' WHERE member_id = %s"
                 cursor.execute(update_query, (teamNo["team_id"], member_not_logged_id))
-                connection.commit()
+                db.commit()
             else:
                 insert_query = "INSERT INTO team_members (member_id, team_id) VALUES (%s, %s)"
                 cursor.execute(insert_query, (member_not_logged_id, teamNo["team_id"]))
@@ -214,13 +214,13 @@ def generate_teams():
                 cursor.execute(insert_query, (member_id, new_party))
                 message = "New member added successfully"
 
-            connection.commit()
+            db.commit()
     finally:
-        close_db()
+        close_db(db)
 
     return jsonify({"message": "Success, load all members in teams Mayo/Ketchup"}), 200
 def save_members_edit(request_form):
-    connection, cursor = get_db()
+    db, cursor = get_db()
     
     try:
         query = "UPDATE members SET steam_id=%s, weight=%s, smoke_color=%s WHERE discord_id=%s"
@@ -233,17 +233,17 @@ def save_members_edit(request_form):
         )
 
         cursor.execute(query, values)
-        connection.commit()
+        db.commit()
         print(f"Updated member data: discord_id={values[3]}, steam_id={values[0]}, weight={values[1]}, smoke_color={values[2]}")
     except Error as e:
         print(f"Error while updating records: {e}")
-        connection.rollback()
+        db.rollback()
     finally:
-      close_db()  
+      close_db(db)  
 
 def clear_teams():
     try:
-        connection, cursor  = get_db()
+        db, cursor  = get_db()
 
         cursor.execute("SELECT * FROM members WHERE weight > 0 AND steam_id IS NOT NULL ORDER BY weight DESC")
         membersNotLogged = cursor.fetchall()
@@ -258,6 +258,6 @@ def clear_teams():
             member_not_logged_id = memberNotLogged["id"]
             update_query="UPDATE team_members SET team_id='%s' WHERE member_id = %s"
             cursor.execute(update_query, (team["team_id"], member_not_logged_id))
-            connection.commit()
+            db.commit()
     finally:
-        close_db()
+        close_db(db)
