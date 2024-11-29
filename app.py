@@ -20,4 +20,4 @@ def create_app():
 if __name__ == "__main__":
     app = create_app()
     with app.app_context():
-        app.run(host=os.getenv('APP_HOST', '0.0.0.0'), port=os.getenv('APP_PORT', 5000)])
+        app.run(host=os.getenv('APP_HOST', '0.0.0.0'), port=os.getenv('APP_PORT', 5000))
