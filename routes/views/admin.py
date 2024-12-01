@@ -136,8 +136,6 @@ def get_teams():
                 existing_team['players'].append(
                     {"id": teamPlayer['player_id'], "name": teamPlayer['player_name'], "weight": teamPlayer['player_weight']})
 
-        print("test")
-
         return teams_result
     finally:
         close_db(db)
@@ -243,8 +241,7 @@ def save_members_edit(request_form):
 
         cursor.execute(query, values)
         db.commit()
-        print(f"Updated member data: discord_id={values[3]}, steam_id={
-              values[0]}, weight={values[1]}, smoke_color={values[2]}")
+        print(f"Updated member data: discord_id={values[3]}")
     except Error as e:
         print(f"Error while updating records: {e}")
         db.rollback()
