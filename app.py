@@ -5,6 +5,7 @@ import os
 
 load_dotenv()
 
+
 def create_app():
     app = Flask(__name__)
     app.register_blueprint(admin.views)
@@ -16,8 +17,10 @@ def create_app():
 
     return app
 
+
 # This block will only run when you execute app.py directly
 if __name__ == "__main__":
     app = create_app()
     with app.app_context():
-        app.run(host=os.getenv('APP_HOST', '0.0.0.0'), port=os.getenv('APP_PORT', 5000))
+        app.run(host=os.getenv('APP_HOST', '0.0.0.0'),
+                port=os.getenv('APP_PORT', 5000))

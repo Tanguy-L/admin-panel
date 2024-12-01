@@ -1,10 +1,10 @@
-import json
 from flask import jsonify
 from flask import Blueprint, render_template, request, redirect
 from core.database import *
 from mysql.connector import Error
 
 views = Blueprint("admin_views", __name__, url_prefix="/admin")
+
 
 @views.route("/", methods=("GET", "POST"))
 def render_admin_home():
@@ -20,13 +20,10 @@ def render_admin_home():
         if ("save" in request_form.keys()):
             del request_form["save"]
             save_members_edit(request_form)
-            
-
-
-    db = get_db()
 
     members = get_members()
     return render_template("admin/dashboard.html", members=members)
+
 
 @views.route("/change_team", methods=["POST"])
 def change_team():
@@ -48,7 +45,7 @@ def change_team():
         print(f"{count}")
 
         if count > 0:
-            update_query="UPDATE team_members SET team_id = %s WHERE member_id=%s"
+            update_query = "UPDATE team_members SET team_id = %s WHERE member_id=%s"
             cursor.execute(update_query, (team_id, member_id))
             message = "Existing member's team updated successfully"
         else:
@@ -68,6 +65,7 @@ def change_team():
     finally:
         close_db(db)
 
+
 @views.route("/teams", methods=("GET", "POST"))
 def render_admin_teams():
     request_method = request.method
@@ -79,7 +77,7 @@ def render_admin_teams():
             del request_form["clear-teams"]
             clear_teams()
             return redirect("/admin")
-        
+
         if ("generate-teams" in request_form.keys()):
             del request_form["generate-teams"]
             generate_teams()
@@ -87,6 +85,7 @@ def render_admin_teams():
 
     teams = get_teams()
     return render_template("admin/teams.html", teams=teams)
+
 
 def get_members():
     try:
@@ -101,8 +100,10 @@ def get_members():
     finally:
         close_db(db)
 
+
 def element_exists(list_of_dicts, name_to_find):
     return next((item for item in list_of_dicts if item.get('name') == name_to_find), None)
+
 
 def get_teams():
     try:
@@ -110,35 +111,37 @@ def get_teams():
 
         queryTeams = """SELECT t.team_id, t.name, t.channel_id
                     FROM teams t"""
-        
+
         cursor.execute(queryTeams)
         teams = cursor.fetchall()
-        
+
         query = """ SELECT t.team_id, t.name, t.channel_id, m.discord_name as player_name, m.id as player_id, m.discord_name as player_name, m.weight as player_weight
                     FROM teams t
                     LEFT JOIN team_members tm ON t.team_id = tm.team_id
                     LEFT JOIN members m ON m.id = tm.member_id
                     WHERE m.discord_name IS NOT NULL"""
 
-
         cursor.execute(query)
         teamPlayers = cursor.fetchall()
 
         teams_result = []
         for team in teams:
-            teams_result.append({"name": team['name'], "id": team["team_id"], "weight": 0, "players": []})
+            teams_result.append(
+                {"name": team['name'], "id": team["team_id"], "weight": 0, "players": []})
 
         for teamPlayer in teamPlayers:
             existing_team = element_exists(teams_result, teamPlayer['name'])
             if existing_team:
-                existing_team['weight']+=teamPlayer['player_weight']
-                existing_team['players'].append({"id":teamPlayer['player_id'], "name": teamPlayer['player_name'], "weight": teamPlayer['player_weight']})
+                existing_team['weight'] += teamPlayer['player_weight']
+                existing_team['players'].append(
+                    {"id": teamPlayer['player_id'], "name": teamPlayer['player_name'], "weight": teamPlayer['player_weight']})
 
         print("test")
-        
+
         return teams_result
     finally:
         close_db(db)
+
 
 def check_has_team_member(id):
     try:
@@ -153,40 +156,44 @@ def check_has_team_member(id):
     finally:
         close_db(db)
 
+
 @views.route("/generate_teams", methods=("GET", "POST"))
 def generate_teams():
     try:
-        db, cursor  = get_db()
+        db, cursor = get_db()
 
-        cursor.execute("SELECT * FROM members WHERE weight > 0 AND steam_id IS NOT NULL AND is_logged_in = 0 ORDER BY weight DESC")
+        cursor.execute(
+            "SELECT * FROM members WHERE weight > 0 AND steam_id IS NOT NULL AND is_logged_in = 0 ORDER BY weight DESC")
         membersNotLogged = cursor.fetchall()
 
-        cursor.execute("SELECT teams.team_id FROM teams WHERE teams.name = 'NoTeam'")
+        cursor.execute(
+            "SELECT teams.team_id FROM teams WHERE teams.name = 'NoTeam'")
         teamNo = cursor.fetchall()[0]
 
         for memberNotLogged in membersNotLogged:
             member_not_logged_id = memberNotLogged["id"]
 
             if check_has_team_member(memberNotLogged["id"]):
-                update_query="UPDATE team_members SET team_id='%s' WHERE member_id = %s"
-                cursor.execute(update_query, (teamNo["team_id"], member_not_logged_id))
+                update_query = "UPDATE team_members SET team_id='%s' WHERE member_id = %s"
+                cursor.execute(
+                    update_query, (teamNo["team_id"], member_not_logged_id))
                 db.commit()
             else:
                 insert_query = "INSERT INTO team_members (member_id, team_id) VALUES (%s, %s)"
-                cursor.execute(insert_query, (member_not_logged_id, teamNo["team_id"]))
+                cursor.execute(
+                    insert_query, (member_not_logged_id, teamNo["team_id"]))
 
-
-
-        cursor.execute("SELECT * FROM members WHERE weight > 0 AND steam_id IS NOT NULL AND is_logged_in = 1 ORDER BY weight DESC")
+        cursor.execute(
+            "SELECT * FROM members WHERE weight > 0 AND steam_id IS NOT NULL AND is_logged_in = 1 ORDER BY weight DESC")
         members = cursor.fetchall()
 
         if not members:
-                print("No members found matching the criteria")
-                return
+            print("No members found matching the criteria")
+            return
 
         ketchup_weight = 0
         mayo_weight = 0
-        
+
         for member in members:
             new_party = None
             member_id = member["id"]
@@ -206,7 +213,7 @@ def generate_teams():
             print(f"{count}")
 
             if count > 0:
-                update_query="UPDATE team_members SET team_id='%s' WHERE member_id = %s"
+                update_query = "UPDATE team_members SET team_id='%s' WHERE member_id = %s"
                 cursor.execute(update_query, (new_party, member_id))
                 message = "Existing member's team updated successfully"
             else:
@@ -219,12 +226,14 @@ def generate_teams():
         close_db(db)
 
     return jsonify({"message": "Success, load all members in teams Mayo/Ketchup"}), 200
+
+
 def save_members_edit(request_form):
     db, cursor = get_db()
-    
+
     try:
         query = "UPDATE members SET steam_id=%s, weight=%s, smoke_color=%s WHERE discord_id=%s"
-        
+
         values = (
             request_form.get('steam_id', [None])[0],
             request_form.get('weight', [None])[0],
@@ -234,21 +243,25 @@ def save_members_edit(request_form):
 
         cursor.execute(query, values)
         db.commit()
-        print(f"Updated member data: discord_id={values[3]}, steam_id={values[0]}, weight={values[1]}, smoke_color={values[2]}")
+        print(f"Updated member data: discord_id={values[3]}, steam_id={
+              values[0]}, weight={values[1]}, smoke_color={values[2]}")
     except Error as e:
         print(f"Error while updating records: {e}")
         db.rollback()
     finally:
-      close_db(db)  
+        close_db(db)
+
 
 def clear_teams():
     try:
-        db, cursor  = get_db()
+        db, cursor = get_db()
 
-        cursor.execute("SELECT * FROM members WHERE weight > 0 AND steam_id IS NOT NULL ORDER BY weight DESC")
+        cursor.execute(
+            "SELECT * FROM members WHERE weight > 0 AND steam_id IS NOT NULL ORDER BY weight DESC")
         membersNotLogged = cursor.fetchall()
 
-        cursor.execute("SELECT teams.team_id FROM teams WHERE teams.name = 'NoTeam'")
+        cursor.execute(
+            "SELECT teams.team_id FROM teams WHERE teams.name = 'NoTeam'")
         team = cursor.fetchall()[0]
 
         if team is None:
@@ -256,8 +269,9 @@ def clear_teams():
 
         for memberNotLogged in membersNotLogged:
             member_not_logged_id = memberNotLogged["id"]
-            update_query="UPDATE team_members SET team_id='%s' WHERE member_id = %s"
-            cursor.execute(update_query, (team["team_id"], member_not_logged_id))
+            update_query = "UPDATE team_members SET team_id='%s' WHERE member_id = %s"
+            cursor.execute(
+                update_query, (team["team_id"], member_not_logged_id))
             db.commit()
     finally:
         close_db(db)
