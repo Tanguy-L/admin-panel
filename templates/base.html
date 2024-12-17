@@ -16,7 +16,7 @@
   <title>{% block page_title %}{% endblock page_title %}</title>
 </head>
 
-<body>
+<main>
   <nord-layout>
 
     {% block navigation %}{% endblock %}
@@ -25,10 +25,10 @@
       <h1 class="n-typescale-l">{% block title %}{% endblock title %}</h1>
     </nord-header>
 
-    <nord-stack id="content" gap="xl" direction="horizontal" justify-content="space-evenly" wrap>
+    <nord-stack direction="vertical" align-items="center" justify-content="center" id="content">
       {% block content required %}{% endblock content %}
     </nord-stack>
-  </nord-layout>
+  </main>
 </body>
 
 </html>

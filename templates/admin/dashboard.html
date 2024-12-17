@@ -33,34 +33,63 @@
         </thead>
         <tbody>
           {% for member in members %}
-          <td>{{ member.discord_name }}</td>
+            <td>{{ member.discord_name }}</td>
 
 
-          {% if request.args.get("edit") %}
-          <td><nord-input name="discord_id" readonly hide-label value="{{ member.discord_id }}" />
-          <td><nord-input name="steam_id" hide-label disallow-pattern="[^0-9]" value="{{ member.steam_id or '' }}" />
-          </td>
-          <td><nord-input name="weight" hide-label disallow-pattern="[^0-9]" value="{{ member.weight }}"
-              style="--n-input-inline-size: 65px" /></td>
-          <td>
-            <nord-select name="smoke_color" value="{{ member.smoke_color }}" hide-label>
-              {% for color in ["default", "red", "green", "blue", "yellow", "pink"] %}
-              <option value="{{ color }}">{{ smoke_en_to_fr(color) }}</option>
-              {% endfor %}
-            </nord-select>
-          </td>
-          {% else %}
-          <td name="discord_id" value="{{ member.discord_id }}" class="n-caption">{{ member.discord_id }}</td>
-          <td class="n-caption">{{ member.steam_id or "-" }}</td>
-          <td><nord-badge>{{ member.weight }}</nord-badge></td>
-          <td><nord-badge>{{ smoke_en_to_fr(member.smoke_color) }}</nord-badge></td>
-          {% endif %}
+            {% if request.args.get("edit") %}
+            <td><nord-input name="discord_id" readonly hide-label value="{{ member.discord_id }}" />
+            <td><nord-input name="steam_id" hide-label disallow-pattern="[^0-9]" value="{{ member.steam_id or '' }}" />
+            </td>
+            <td><nord-input name="weight" hide-label disallow-pattern="[^0-9]" value="{{ member.weight }}"
+                style="--n-input-inline-size: 65px" /></td>
+            <td>
+              <nord-select name="smoke_color" value="{{ member.smoke_color }}" hide-label>
+                {% for color in ["default", "red", "green", "blue", "yellow", "pink"] %}
+                  <option value="{{ color }}">{{ smoke_en_to_fr(color) }}</option>
+                {% endfor %}
+              </nord-select>
+            </td>
+            {% else %}
+              <td name="discord_id" value="{{ member.discord_id }}" class="n-caption">{{ member.discord_id }}</td>
+              <td class="n-caption">{{ member.steam_id or "-" }}</td>
+              <td><nord-badge>{{ member.weight }}</nord-badge></td>
+              <td><nord-badge>{{ smoke_en_to_fr(member.smoke_color) }}</nord-badge></td>
+            {% endif %}
 
-          <td><nord-badge>{{ member.team_name }}</nord-badge></td>
-          <td><nord-icon
-              color="{{ 'var(--n-color-status-info)' if member.is_logged_in else 'var(--n-color-status-danger)' }}"
-              name="{{ 'interface-link' if member.is_logged_in else 'interface-unlink'}}"></nord-icon></td>
-          </tr>
+            <td><nord-badge>{{ member.team_name }}</nord-badge></td>
+
+            {% if request.args.get("edit") %}
+
+            <td>
+
+              <nord-select name="is_logged_in" value="{{ member.is_logged_in }}" hide-label>
+                {% for valueLogged in [0, 1] %}
+                  <option value="{{ valueLogged }}">{{ valueLogged }}</option>
+                {% endfor %}
+              </nord-select>
+
+            </td>
+            </tr>
+            {% if member.is_logged_in == 1 %}
+
+            <!--<td>-->
+            <!--  <nord-checkbox name="is_logged_in" value="{{ member.is_logged_in }}" label="Connecté" checked></nord-checkbox>-->
+            <!--</td>-->
+            <!--</tr>-->
+            {% else %}
+
+            <!--<td>-->
+            <!--  <nord-checkbox name="is_logged_in" value='{{ member.is_logged_in }}' label="Connecté" ></nord-checkbox>-->
+            <!--</td>-->
+            <!--</tr>-->
+            {% endif %}
+            {% else %}
+            
+              <td><nord-icon
+                  color="{{ 'var(--n-color-status-info)' if member.is_logged_in else 'var(--n-color-status-danger)' }}"
+                  name="{{ 'interface-link' if member.is_logged_in else 'interface-unlink'}}"></nord-icon></td>
+              </tr>
+            {% endif %}
           {% endfor %}
         </tbody>
       </table>
@@ -79,7 +108,7 @@
 
 <style>
   #content nord-card {
-    max-width: 950px;
+    max-width: 1200px;
   }
 </style>
 {% endblock content %}
