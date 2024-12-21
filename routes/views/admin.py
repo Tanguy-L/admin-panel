@@ -29,6 +29,7 @@ def database_transaction():
         yield db, cursor
         db.commit()
     except Exception as e:
+        logging.error(f"db transactions error : {str(e)}")
         db.rollback()
         raise
     finally:
@@ -67,6 +68,8 @@ class MemberDTO:
 class TeamDTO:
     id: int
     name: str
+    side: Optional[str]
+    is_playing: bool
     channel_id: Optional[str]
     weight: float = 0
     players: List[Dict] = field(default_factory=list)
@@ -128,11 +131,55 @@ class TeamRepository:
     def __init__(self, cursor):
         self.cursor = cursor
 
+    def get_teams_connected(self):
+        self.cursor.execute(
+            """
+            SELECT team_id, name, channel_id, side, is_playing
+            FROM teams
+            WHERE is_playing
+            ORDER BY team_id
+        """
+        )
+        teams = self.cursor.fetchall()
+        return teams
+
+    def add_team(self, team):
+        query = """
+            INSERT INTO teams (name, side)
+            VALUES (%s, %s)
+        """
+
+        self.cursor.execute(
+            query,
+            (
+                team.get("name"),
+                team.get("side"),
+            ),
+        )
+
+    def update_team(self, team):
+        query = """
+            UPDATE teams
+            SET name = %s, side = %s, channel_id = %s, is_playing = %s
+            WHERE team_id = %s
+        """
+
+        self.cursor.execute(
+            query,
+            (
+                team.get("name"),
+                team.get("side"),
+                team.get("channel_id"),
+                team.get("is_playing"),
+                team.get("id"),
+            ),
+        )
+
     def get_all_teams(self) -> List[TeamDTO]:
         # Get basic team info
         self.cursor.execute(
             """
-            SELECT team_id, name, channel_id
+            SELECT team_id, name, channel_id, side, is_playing
             FROM teams
             ORDER BY team_id
         """
@@ -160,7 +207,11 @@ class TeamRepository:
     ) -> List[TeamDTO]:
         team_map = {
             team["team_id"]: TeamDTO(
-                id=team["team_id"], name=team["name"], channel_id=team["channel_id"]
+                id=team["team_id"],
+                name=team["name"],
+                channel_id=team["channel_id"],
+                side=team["side"],
+                is_playing=team["is_playing"],
             )
             for team in teams
         }
@@ -181,8 +232,7 @@ class TeamRepository:
 
     def get_no_team_id(self) -> int:
         self.cursor.execute(
-            "SELECT team_id FROM teams WHERE name = %s", (
-                TeamConfig.NO_TEAM_NAME,)
+            "SELECT team_id FROM teams WHERE name = %s", (TeamConfig.NO_TEAM_NAME,)
         )
         result = self.cursor.fetchone()
         return result["team_id"]
@@ -226,12 +276,11 @@ class TeamService:
         self.member_repo = MemberRepository(cursor)
         self.team_member_repo = TeamMemberRepository(cursor)
 
-    def generate_balanced_teams(self) -> Tuple[float, float]:
+    def generate_balanced_teams(self):
         no_team_id = self.team_repo.get_no_team_id()
 
         # Move logged out members to no team
-        logged_out_members = self.member_repo.get_members_by_login_status(
-            False)
+        logged_out_members = self.member_repo.get_members_by_login_status(False)
         for member in logged_out_members:
             self.team_member_repo.update_team_member(member["id"], no_team_id)
 
@@ -240,12 +289,14 @@ class TeamService:
         if not logged_in_members:
             raise ValueError("No active members found")
 
-        balancer = TeamBalancer()
+        teams_connected = self.team_repo.get_teams_connected()
+
+        balancer = TeamBalancer(teams_connected)
         for member in logged_in_members:
             new_team_id = balancer.get_balanced_team(member["weight"])
             self.team_member_repo.update_team_member(member["id"], new_team_id)
 
-        return balancer.mayo_weight, balancer.ketchup_weight
+        return list(map((lambda x: x["weight"]), balancer.teams_balance))
 
     def clear_teams(self) -> None:
         no_team_id = self.team_repo.get_no_team_id()
@@ -253,22 +304,25 @@ class TeamService:
 
         for member in members:
             if member["weight"] > 0 and member["steam_id"]:
-                self.team_member_repo.update_team_member(
-                    member["id"], no_team_id)
+                self.team_member_repo.update_team_member(member["id"], no_team_id)
 
 
 class TeamBalancer:
-    def __init__(self):
-        self.mayo_weight = 0
-        self.ketchup_weight = 0
+    def __init__(self, teams):
+        self.teams_balance = []
+        for team in teams:
+            print(team)
+            self.teams_balance.append(
+                {
+                    "weight": 0,
+                    "id": team["team_id"],
+                }
+            )
 
     def get_balanced_team(self, member_weight: float) -> int:
-        if self.mayo_weight <= self.ketchup_weight:
-            self.mayo_weight += member_weight
-            return TeamConfig.MAYO_TEAM_ID
-        else:
-            self.ketchup_weight += member_weight
-            return TeamConfig.KETCHUP_TEAM_ID
+        minTeam = min(self.teams_balance, key=lambda x: x["weight"])
+        minTeam["weight"] += member_weight
+        return minTeam["id"]
 
 
 # Route handlers
@@ -283,7 +337,7 @@ def render_admin_home():
 
         if "save" in form_data:
             with database_transaction() as (db, cursor):
-                num_players = len(next(iter(form_data)))
+                num_players = len(form_data["discord_id"])
 
                 print(form_data)
                 for i in range(num_players):
@@ -328,7 +382,39 @@ def change_team():
 
 @views.route("/teams", methods=["GET", "POST"])
 @handle_db_errors
-def render_admin_teams():
+def render_teams():
+    if request.method == "POST":
+        form_data = request.form.to_dict(flat=False)
+
+        if "edit" in form_data:
+            return redirect("/admin/teams?edit=true")
+
+        if "save" in form_data:
+            with database_transaction() as (db, cursor):
+                num_teams = len(form_data["id"])
+
+                for i in range(num_teams):
+                    team_data = {
+                        "name": form_data["name"][i] or None,
+                        "side": form_data["side"][i] or None,
+                        "channel_id": form_data["channel_id"][i] or None,
+                        "id": form_data["id"][i] or None,
+                        "is_playing": form_data["is_playing"][i] or None,
+                    }
+
+                    repo = TeamRepository(cursor)
+                    repo.update_team(team_data)
+
+    with database_transaction() as (db, cursor):
+        repo = TeamRepository(cursor)
+        teams = repo.get_all_teams()
+
+    return render_template("admin/teams.html", teams=teams)
+
+
+@views.route("/teams-players", methods=["GET", "POST"])
+@handle_db_errors
+def render_teams_players():
     if request.method == "POST":
         form_data = request.form.to_dict(flat=False)
 
@@ -341,13 +427,43 @@ def render_admin_teams():
 
             if "generate-teams" in form_data:
                 service.generate_balanced_teams()
-                return redirect("/admin/teams")
+                return redirect("/admin/teams-players")
 
     with database_transaction() as (db, cursor):
         repo = TeamRepository(cursor)
         teams = repo.get_all_teams()
 
-    return render_template("admin/teams.html", teams=teams)
+    return render_template("admin/teams-players.html", teams=teams)
+
+
+@views.route("/add-team", methods=["GET", "POST"])
+@handle_db_errors
+def render_add_team():
+    if request.method == "POST":
+        form_data = request.form.to_dict(flat=False)
+
+        if "save" in form_data:
+            with database_transaction() as (db, cursor):
+                team_data = {
+                    "name": form_data["name"][0],
+                    "side": form_data["side"][0],
+                }
+
+                print(team_data)
+
+                repo = TeamRepository(cursor)
+                repo.add_team(team_data)
+
+        with database_transaction() as (db, cursor):
+            print(form_data)
+
+    new_team = {
+        "name": "test",
+        "side": "CounterTerrorist",
+        "channel_id": 0,
+    }
+
+    return render_template("admin/add-team.html", team=new_team)
 
 
 @views.route("/generate_teams", methods=["GET", "POST"])

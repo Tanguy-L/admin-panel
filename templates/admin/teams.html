@@ -1,300 +1,84 @@
 {% extends "admin/base.html" %}
 
-{% block page_title %}{{ super() }} - Création des équipes{% endblock page_title %}
+{% block page_title %}{{ super() }} - List des équipes{% endblock page_title %}
 
-{% block title %}Création des équipes{% endblock title %}
+{% block title %}Liste des équipes{% endblock title %}
 
 {% block content %}
-<nord-stack direction="horizontal" justify-content="center">
-  <nord-select name="teams" value="{{teams[0].id}}" label="Equipe a transférer">
-    {% for team in teams%}
-    <option value="{{team.id}}">{{team.name}}</option>
-    {% endfor %}
-
-  </nord-select>
-</nord-stack>
-<nord-stack direction="horizontal" justify-content="center">
-  {% for team in teams %}
-  <nord-card padding="none" data-team-id="{{ team.id }}">
-    <h2 slot="header">{{ team.name }}</h2>
-    <nord-badge slot="header-end">{{ team.weight }}</nord-badge>
+  <form action="/admin/teams" method="post">
+    <nord-card>
+      <h2 slot="header">Liste des équipes</h2>
+      <nord-stack slot="header-end" direction="horizontal" gap="s">
+        {% if request.args.get("edit") %}
+        <nord-button name="save" size="s" variant="primary">Sauvegarder</nord-button>
+        <nord-button name="cancel" size="s">Annuler</nord-button>
+        {% else %}
+        <nord-button name="edit" size="s">Modifier</nord-button>
+        {% endif %}
+      </nord-stack>
     <nord-table>
-      <table>
-        <thead>
+    <table>
+      <thead>
+      <tr>
+        <th>Id</th>
+        <th>Nom</th>
+        <th>Side</th>
+        <th>Channel discord id</th>
+        <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for team in teams %}
           <tr>
-            <th>Séléction</th>
-            <th>Pseudo</th>
-            <th>Pondération</th>
+            {% if request.args.get("edit") %}
+              <td><nord-input name="id" readonly hide-label value="{{ team.id}}" /> </td>
+              <td><nord-input name="name" value="{{ team.name}}" /> </td>
+              <td>
+                <nord-select name="side" value="{{ team.side }}" hide-label>
+                  {% for side_game in ["CounterTerrorist", "Terrorist"] %}
+                    <option value="{{ side_game }}">{{ side_game }}</option>
+                  {% endfor %}
+                </nord-select>
+              </td>
+              <td><nord-input name="channel_id" readonly hide-label value="{{ team.channel_id }}" /></td>
+              <td>
+                <nord-select name="is_playing" value="{{ team.is_playing }}" hide-label>
+                  {% for bool in [0, 1] %}
+                    <option value="{{ bool }}">{{ bool }}</option>
+                  {% endfor %}
+                </nord-select>
+              </td>
+            {% else %}
+                <td>{{ team.id }}</td>
+                <td>{{ team.name }}</td>
+                <td>{{ team.side}}</td>
+                <td>{{ team.channel_id}}</td>
+                <td>
+                  {% if team.is_playing == 1 %}
+                    <nord-badge variant="success">Connecté</nord-badge>
+                  {% else %}
+                    <nord-badge variant="danger">Nope</nord-badge>
+                  {% endif %}
+                </td>
+            {% endif %}
           </tr>
-        </thead>
-        <tbody>
-          {% if team["players"] and team["players"]|length > 0 %}
-          {% for member in team["players"] %}
-          <tr data-member-id="{{ member.id }}">
-            <td>
-              <nord-checkbox class="member-checkbox"></nord-checkbox>
-            </td>
-            <td>{{ member.name }}</td>
-            <td><nord-badge>{{ member.weight }}</nord-badge></td>
-          </tr>
-          {% endfor %}
-          {% else %}
-          <tr>
-            <td colspan="3">Il y a personne ici</td>
-          </tr>
-          {% endif %}
-        </tbody>
-      </table>
+        {% endfor %}
+      </tbody>
+    </table>
     </nord-table>
-  </nord-card>
-  {% endfor %}
-</nord-stack>
-
-<nord-stack gap="s" direction="horizontal" justify-content="end">
-  <!-- <nord-button variant="primary" name="submit-teams">Valider les équipes</nord-button> -->
-
-  <nord-button variant="primary" id="swap-teams">Switch la séléction</nord-button>
-  <nord-button variant="default" id="generate-teams">Regénérer les équipes</nord-button>
-</nord-stack>
-
-<script>
-  function changeTeam(memberId, newTeamId) {
-    fetch('/change_team', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        team_id: newTeamId,
-        member_id: memberId
-      }),
-    })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Success:', data);
-      })
-      .catch((error) => {
-        console.error('Error:', error);
-      });
-  }
-
-  const generateTeamEl = document.getElementById('generate-teams');
-  generateTeamEl.addEventListener('click', () => {
-    fetch('/admin/generate_teams', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    }).then(response => {
-      location.reload()
-    });
-  })
-
-
-
-  const memberCheckboxStates = new Map();
-  const teamPlayers = new Map();
-  let currentTeamId = null
-  const checkboxes = document.querySelectorAll('.member-checkbox');
-  const teamToTransfer = document.getElementsByName('teams')
-  const selectElement = document.querySelector('nord-select[name="teams"]')
-  document.addEventListener('DOMContentLoaded', () => {
-    currentTeamId = selectElement.value;
-  });
-
-  selectElement.addEventListener('change', (event) => {
-    currentTeamId = event.target.value;
-  });
-
-  checkboxes.forEach(checkbox => {
-    const row = checkbox.closest('tr');
-    const memberId = row.dataset.memberId;
-    const card = row.closest('nord-card');
-    const currentTeamId = card.dataset.teamId;
-    const team = teamPlayers.get(currentTeamId)
-
-    if (!team) {
-      teamPlayers.set(currentTeamId, Array.from([memberId]))
-    } else {
-      team.push(memberId)
-    }
-    memberCheckboxStates.set(memberId, checkbox.checked);
-
-    checkbox.addEventListener('change', function () {
-      memberCheckboxStates.set(memberId, this.checked);
-    });
-  });
-
-  function getMemberCheckboxStates() {
-    return Object.fromEntries(memberCheckboxStates);
-  }
-
-  function getTrueKeys(map) {
-    const trueKeys = [];
-    for (const [key, value] of map) {
-      if (value === true) {
-        console.log(typeof key)
-        trueKeys.push(key);
-      }
-    }
-    return trueKeys;
-  }
-
-  function findTeamByMemberId(teamsMap, memberId) {
-    for (const [team, members] of teamsMap) {
-      if (members.includes(memberId)) {
-        return team;
-      }
-    }
-    return null; // Return null if the member ID is not found in any team
-  }
-
-  async function SwapTeams() {
-    const membersValidated = getTrueKeys(memberCheckboxStates);
-    const promises = membersValidated.map(async (memberId) => {
-      const currentTeam = findTeamByMemberId(teamPlayers, memberId);
-      const newTeamId = currentTeamId
-
-      console.log(newTeamId)
-      console.log(currentTeam)
-
-      const response = await fetch('/admin/change_team', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          member_id: memberId,
-          team_id: newTeamId
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return response.json();
-    });
-
-    try {
-      const results = await Promise.all(promises);
-      console.log('All team changes completed successfully:', results);
-    } catch (error) {
-      console.error('An error occurred while changing teams:', error);
-    }
-  }
-
-  document.getElementById('swap-teams').addEventListener('click', (() => {
-    SwapTeams().then(() => {
-      location.reload()
-    }).catch(error => {
-      console.error('Failed to swap teams:', error);
-    });
-  }));
-</script>
+  </form>
+</nord-card>
 
 <style>
-  nord-table {
-    max-height: 600px;
-  }
-
-  .team-vs {
-    min-width: fit-content;
-    font-family: var(--n-font-family);
-    font-weight: var(--n-font-weight-strong);
-    font-size: var(--n-size-icon-xl);
-    align-self: center;
-  }
-
-  nord-badge.clickable {
-    cursor: pointer;
-    user-select: none;
-  }
-
-  #snackbar {
-    visibility: hidden;
-    /* Hidden by default. Visible on click */
-    min-width: 250px;
-    /* Set a default minimum width */
-    margin-left: -125px;
-    /* Divide value of min-width by 2 */
-    background-color: #333;
-    /* Black background color */
-    color: #fff;
-    /* White text color */
-    text-align: center;
-    /* Centered text */
-    border-radius: 2px;
-    /* Rounded borders */
-    padding: 16px;
-    /* Padding */
-    position: fixed;
-    /* Sit on top of the screen */
-    z-index: 1;
-    /* Add a z-index if needed */
-    left: 50%;
-    /* Center the snackbar */
-    bottom: 30px;
-    /* 30px from the bottom */
-  }
-
-  /* Show the snackbar when clicking on a button (class added with JavaScript) */
-  #snackbar.show {
-    visibility: visible;
-    /* Show the snackbar */
-    /* Add animation: Take 0.5 seconds to fade in and out the snackbar.
-  However, delay the fade out process for 2.5 seconds */
-    -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
-    animation: fadein 0.5s, fadeout 0.5s 2.5s;
-  }
-
-  /* Animations to fade the snackbar in and out */
-  @-webkit-keyframes fadein {
-    from {
-      bottom: 0;
-      opacity: 0;
-    }
-
-    to {
-      bottom: 30px;
-      opacity: 1;
-    }
-  }
-
-  @keyframes fadein {
-    from {
-      bottom: 0;
-      opacity: 0;
-    }
-
-    to {
-      bottom: 30px;
-      opacity: 1;
-    }
-  }
-
-  @-webkit-keyframes fadeout {
-    from {
-      bottom: 30px;
-      opacity: 1;
-    }
-
-    to {
-      bottom: 0;
-      opacity: 0;
-    }
-  }
-
-  @keyframes fadeout {
-    from {
-      bottom: 30px;
-      opacity: 1;
-    }
-
-    to {
-      bottom: 0;
-      opacity: 0;
-    }
+  #content nord-card {
+    max-width: 1200px;
   }
 </style>
 {% endblock content %}
+
+{% macro value_side(side) %}
+{% if side == "CounterTerrorist" %} CT
+{% elif side == "Terrorist" %} T
+{% else %} CT
+{% endif %}
+{% endmacro %}

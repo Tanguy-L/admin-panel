@@ -18,10 +18,11 @@ def create_app():
     return app
 
 
+application = create_app()
+
 # This block will only run when you execute app.py directly
 if __name__ == "__main__":
-    app = create_app()
-    with app.app_context():
-        app.run(
-            host=os.getenv("APP_HOST", "0.0.0.0"), port=int(os.getenv("APP_PORT", 5000))
+    with application.app_context():
+        application.run(
+            host=os.getenv("APP_HOST", "0.0.0.0"), port=int(os.getenv("APP_PORT", 8000))
         )

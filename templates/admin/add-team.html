@@ -1,0 +1,43 @@
+{% extends "admin/base.html" %} {% block page_title %}{{ super() }} - Liste des
+joueurs{% endblock page_title %} {% block title %}Liste des joueurs{% endblock
+title %} {% block content %}
+<nord-stack class="form" gap="xl" direction="vertical">
+  <nord-card justify-content="center" align-items="center">
+    <nord-stack gap="l" direction="vertical">
+      <h2>Ajouter une équipe</h2>
+      <form
+        action="/admin/add-team"
+        method="post"
+        direction="vertical"
+        align-items="stretch"
+      >
+        <nord-input
+          label="Nom"
+          name="name"
+          value="{{ team.name }}"
+          expand
+        ></nord-input>
+        <nord-select
+          label="Side"
+          name="side"
+          value="{{ team.side }}"
+          hide-label
+        >
+          {% for side_game in ["CounterTerrorist", "Terrorist"] %}
+          <option value="{{ side_game }}">{{ side_game }}</option>
+          {% endfor %}
+        </nord-select>
+        <nord-button name="save" variant="primary" expand
+          >Ajouter l'équipe</nord-button
+        >
+      </form></nord-stack
+    >
+  </nord-card>
+</nord-stack>
+
+<style>
+  .form {
+    max-width: 500px;
+  }
+</style>
+{% endblock %}
