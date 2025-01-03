@@ -131,6 +131,33 @@ class TeamRepository:
     def __init__(self, cursor):
         self.cursor = cursor
 
+    def get_teams_with_players_connected(self):
+        self.cursor.execute(
+            """
+            SELECT team_id, name, channel_id, side, is_playing
+            FROM teams
+            WHERE is_playing
+            ORDER BY team_id
+        """
+        )
+        teams = self.cursor.fetchall()
+
+        # Get team players
+        self.cursor.execute(
+            """
+            SELECT
+                t.team_id, t.name, m.id as player_id,
+                m.discord_name as player_name, m.weight as player_weight
+            FROM teams t
+            LEFT JOIN team_members tm ON t.team_id = tm.team_id
+            LEFT JOIN members m ON m.id = tm.member_id
+            WHERE m.discord_name IS NOT NULL
+        """
+        )
+        players = self.cursor.fetchall()
+
+        return self._aggregate_team_data(teams, players)
+
     def get_teams_connected(self):
         self.cursor.execute(
             """
@@ -142,6 +169,22 @@ class TeamRepository:
         )
         teams = self.cursor.fetchall()
         return teams
+
+        # Get team players
+        self.cursor.execute(
+            """
+            SELECT
+                t.team_id, t.name, m.id as player_id,
+                m.discord_name as player_name, m.weight as player_weight
+            FROM teams t
+            LEFT JOIN team_members tm ON t.team_id = tm.team_id
+            LEFT JOIN members m ON m.id = tm.member_id
+            WHERE m.discord_name IS NOT NULL
+        """
+        )
+        players = self.cursor.fetchall()
+
+        return self._aggregate_team_data(teams, players)
 
     def add_team(self, team):
         query = """
@@ -160,7 +203,8 @@ class TeamRepository:
     def update_team(self, team):
         query = """
             UPDATE teams
-            SET name = %s, side = %s, channel_id = %s, is_playing = %s
+            SET name = %s, side = %s,channel_id =NULLIF(%s, ''),
+            is_playing = %s
             WHERE team_id = %s
         """
 
@@ -232,7 +276,8 @@ class TeamRepository:
 
     def get_no_team_id(self) -> int:
         self.cursor.execute(
-            "SELECT team_id FROM teams WHERE name = %s", (TeamConfig.NO_TEAM_NAME,)
+            "SELECT team_id FROM teams WHERE name = %s", (
+                TeamConfig.NO_TEAM_NAME,)
         )
         result = self.cursor.fetchone()
         return result["team_id"]
@@ -280,7 +325,8 @@ class TeamService:
         no_team_id = self.team_repo.get_no_team_id()
 
         # Move logged out members to no team
-        logged_out_members = self.member_repo.get_members_by_login_status(False)
+        logged_out_members = self.member_repo.get_members_by_login_status(
+            False)
         for member in logged_out_members:
             self.team_member_repo.update_team_member(member["id"], no_team_id)
 
@@ -304,7 +350,8 @@ class TeamService:
 
         for member in members:
             if member["weight"] > 0 and member["steam_id"]:
-                self.team_member_repo.update_team_member(member["id"], no_team_id)
+                self.team_member_repo.update_team_member(
+                    member["id"], no_team_id)
 
 
 class TeamBalancer:
@@ -394,10 +441,16 @@ def render_teams():
                 num_teams = len(form_data["id"])
 
                 for i in range(num_teams):
+                    channel_id = form_data["channel_id"][i]
+                    if channel_id in ("None", "", None):
+                        channel_id = None
+                    else:
+                        channel_id = int(channel_id)
+
                     team_data = {
                         "name": form_data["name"][i] or None,
                         "side": form_data["side"][i] or None,
-                        "channel_id": form_data["channel_id"][i] or None,
+                        "channel_id": channel_id,
                         "id": form_data["id"][i] or None,
                         "is_playing": form_data["is_playing"][i] or None,
                     }
@@ -431,7 +484,7 @@ def render_teams_players():
 
     with database_transaction() as (db, cursor):
         repo = TeamRepository(cursor)
-        teams = repo.get_all_teams()
+        teams = repo.get_teams_with_players_connected()
 
     return render_template("admin/teams-players.html", teams=teams)
 
