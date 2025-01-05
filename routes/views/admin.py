@@ -276,8 +276,7 @@ class TeamRepository:
 
     def get_no_team_id(self) -> int:
         self.cursor.execute(
-            "SELECT team_id FROM teams WHERE name = %s", (
-                TeamConfig.NO_TEAM_NAME,)
+            "SELECT team_id FROM teams WHERE name = %s", (TeamConfig.NO_TEAM_NAME,)
         )
         result = self.cursor.fetchone()
         return result["team_id"]
@@ -325,8 +324,7 @@ class TeamService:
         no_team_id = self.team_repo.get_no_team_id()
 
         # Move logged out members to no team
-        logged_out_members = self.member_repo.get_members_by_login_status(
-            False)
+        logged_out_members = self.member_repo.get_members_by_login_status(False)
         for member in logged_out_members:
             self.team_member_repo.update_team_member(member["id"], no_team_id)
 
@@ -350,8 +348,7 @@ class TeamService:
 
         for member in members:
             if member["weight"] > 0 and member["steam_id"]:
-                self.team_member_repo.update_team_member(
-                    member["id"], no_team_id)
+                self.team_member_repo.update_team_member(member["id"], no_team_id)
 
 
 class TeamBalancer:
@@ -522,16 +519,16 @@ def render_add_team():
 @views.route("/generate_teams", methods=["GET", "POST"])
 @handle_db_errors
 def generate_teams():
-    with database_transaction() as (db, cursor):
-        service = TeamService(db, cursor)
-        mayo_weight, ketchup_weight = service.generate_balanced_teams()
+    if request.method == "POST":
+        with database_transaction() as (db, cursor):
+            service = TeamService(db, cursor)
+            service.generate_balanced_teams()
+            return redirect("/admin/teams-players")
 
     return (
         jsonify(
             {
                 "message": "Successfully balanced teams Mayo/Ketchup",
-                "mayo_weight": mayo_weight,
-                "ketchup_weight": ketchup_weight,
             }
         ),
         200,
