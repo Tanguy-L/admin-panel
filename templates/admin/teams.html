@@ -40,7 +40,7 @@
                   {% endfor %}
                 </nord-select>
               </td>
-              <td><nord-input name="channel_id" readonly hide-label value="{{ team.channel_id }}" /></td>
+              <td><nord-input name="channel_id" hide-label value="{{ team.channel_id }}" /></td>
               <td>
                 <nord-select name="is_playing" value="{{ team.is_playing }}" hide-label>
                   {% for bool in [0, 1] %}
