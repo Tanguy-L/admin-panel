@@ -170,22 +170,6 @@ class TeamRepository:
         teams = self.cursor.fetchall()
         return teams
 
-        # Get team players
-        self.cursor.execute(
-            """
-            SELECT
-                t.team_id, t.name, m.id as player_id,
-                m.discord_name as player_name, m.weight as player_weight
-            FROM teams t
-            LEFT JOIN team_members tm ON t.team_id = tm.team_id
-            LEFT JOIN members m ON m.id = tm.member_id
-            WHERE m.discord_name IS NOT NULL
-        """
-        )
-        players = self.cursor.fetchall()
-
-        return self._aggregate_team_data(teams, players)
-
     def add_team(self, team):
         query = """
             INSERT INTO teams (name, side)
@@ -276,7 +260,8 @@ class TeamRepository:
 
     def get_no_team_id(self) -> int:
         self.cursor.execute(
-            "SELECT team_id FROM teams WHERE name = %s", (TeamConfig.NO_TEAM_NAME,)
+            "SELECT team_id FROM teams WHERE name = %s",
+            (TeamConfig.NO_TEAM_NAME,),
         )
         result = self.cursor.fetchone()
         return result["team_id"]
@@ -324,7 +309,9 @@ class TeamService:
         no_team_id = self.team_repo.get_no_team_id()
 
         # Move logged out members to no team
-        logged_out_members = self.member_repo.get_members_by_login_status(False)
+        logged_out_members = self.member_repo.get_members_by_login_status(
+            False
+        )
         for member in logged_out_members:
             self.team_member_repo.update_team_member(member["id"], no_team_id)
 
@@ -348,7 +335,9 @@ class TeamService:
 
         for member in members:
             if member["weight"] > 0 and member["steam_id"]:
-                self.team_member_repo.update_team_member(member["id"], no_team_id)
+                self.team_member_repo.update_team_member(
+                    member["id"], no_team_id
+                )
 
 
 class TeamBalancer:

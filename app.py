@@ -24,5 +24,6 @@ application = create_app()
 if __name__ == "__main__":
     with application.app_context():
         application.run(
-            host=os.getenv("APP_HOST", "0.0.0.0"), port=int(os.getenv("APP_PORT", 8000))
+            host=os.getenv("APP_HOST", "0.0.0.0"),
+            port=int(os.getenv("APP_PORT", 8000)),
         )
