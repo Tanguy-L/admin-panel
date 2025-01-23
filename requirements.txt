@@ -1,5 +1,6 @@
 flask==3.0.3
 mysql-connector-python==9.0.0
+flask-jwt-extended==4.7.1
 jsonify==0.5
 gunicorn==21.2.0
 python-dotenv==1.0.1

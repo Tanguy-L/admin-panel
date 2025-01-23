@@ -1,14 +1,25 @@
-from flask import Blueprint, render_template, request, redirect, jsonify
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass, field
-from contextlib import contextmanager
-from mysql.connector import Error
+import json
 import logging
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from functools import wraps
-from core.database import get_db, close_db
+from typing import Any, Dict, List, Optional, Tuple
 
-# Blueprint setup
-views = Blueprint("admin_views", __name__, url_prefix="/admin")
+from flask import (
+    Blueprint,
+    jsonify,
+    Response,
+    redirect,
+    render_template,
+    request,
+)
+from mysql.connector import Error
+
+from core.database import close_db, get_db
+
+api = Blueprint("api", __name__)
+
+API_VERSION = "v1"
 
 
 # Constants and Configuration
@@ -358,167 +369,91 @@ class TeamBalancer:
         return minTeam["id"]
 
 
-# Route handlers
-@views.route("/", methods=["GET", "POST"])
+# Version route
+@api.route("/", methods=["GET"])
+def get_version():
+    return jsonify({"version": API_VERSION, "status": "running"})
+
+
+def _validate_and_update_member(repo, player_data):
+    """Helper function to validate and update a single member"""
+    required_fields = [
+        "discord_id",
+        "steam_id",
+        "weight",
+        "smoke_color",
+        "is_logged_in",
+    ]
+
+    # Check required fields
+    for field in required_fields:
+        if field not in player_data:
+            raise ValueError(f"Missing required field: {field}")
+
+    # Convert and validate data types
+    try:
+        validated_data = {
+            "discord_id": str(player_data["discord_id"]),
+            "steam_id": (
+                str(player_data["steam_id"])
+                if player_data["steam_id"]
+                else None
+            ),
+            "weight": float(player_data["weight"]),
+            "smoke_color": str(player_data["smoke_color"]),
+            "is_logged_in": bool(player_data["is_logged_in"]),
+        }
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid data format: {str(e)}")
+
+    repo.update_member(validated_data)
+
+
+# Members route
+@api.route("/members", methods=["GET", "POST"])
 @handle_db_errors
-def render_admin_home():
-    if request.method == "POST":
-        form_data = request.form.to_dict(flat=False)
-
-        if "edit" in form_data:
-            return redirect("/admin/?edit=true")
-
-        if "save" in form_data:
-            with database_transaction() as (db, cursor):
-                num_players = len(form_data["discord_id"])
-
-                print(form_data)
-                for i in range(num_players):
-                    player_data = {
-                        "discord_id": form_data["discord_id"][i],
-                        "steam_id": form_data["steam_id"][i] or None,
-                        "weight": float(form_data["weight"][i]),
-                        "smoke_color": form_data["smoke_color"][i],
-                        "is_logged_in": form_data["is_logged_in"][i],
-                    }
-
-                    repo = MemberRepository(cursor)
-                    repo.update_member(player_data)
-
-    with database_transaction() as (db, cursor):
-        repo = MemberRepository(cursor)
-        members = repo.get_all_members()
-
-    return render_template("admin/dashboard.html", members=members)
-
-
-@views.route("/change_team", methods=["POST"])
-@handle_db_errors
-def change_team():
-    data = request.json
-
-    if data is None:
-        return jsonify({"error": "Invalid JSON data"}), 400
-
-    team_id = data.get("team_id")
-    member_id = data.get("member_id")
-
-    if not all([team_id, member_id]):
-        return jsonify({"error": "Missing team_id or member_id"}), 400
-
-    with database_transaction() as (db, cursor):
-        repo = TeamMemberRepository(cursor)
-        repo.update_team_member(member_id, team_id)
-
-    return jsonify({"message": "Team updated successfully"}), 200
-
-
-@views.route("/teams", methods=["GET", "POST"])
-@handle_db_errors
-def render_teams():
-    if request.method == "POST":
-        form_data = request.form.to_dict(flat=False)
-
-        if "edit" in form_data:
-            return redirect("/admin/teams?edit=true")
-
-        if "save" in form_data:
-            with database_transaction() as (db, cursor):
-                num_teams = len(form_data["id"])
-
-                for i in range(num_teams):
-                    channel_id = form_data["channel_id"][i]
-                    if channel_id in ("None", "", None):
-                        channel_id = None
-                    else:
-                        channel_id = int(channel_id)
-
-                    team_data = {
-                        "name": form_data["name"][i] or None,
-                        "side": form_data["side"][i] or None,
-                        "channel_id": channel_id,
-                        "id": form_data["id"][i] or None,
-                        "is_playing": form_data["is_playing"][i] or None,
-                    }
-
-                    repo = TeamRepository(cursor)
-                    repo.update_team(team_data)
-
-    with database_transaction() as (db, cursor):
-        repo = TeamRepository(cursor)
-        teams = repo.get_all_teams()
-
-    return render_template("admin/teams.html", teams=teams)
-
-
-@views.route("/teams-players", methods=["GET", "POST"])
-@handle_db_errors
-def render_teams_players():
-    if request.method == "POST":
-        form_data = request.form.to_dict(flat=False)
-
+def handle_members() -> Response:
+    if request.method == "GET":
         with database_transaction() as (db, cursor):
-            service = TeamService(db, cursor)
+            repo = MemberRepository(cursor)
+            members = repo.get_all_members()
 
-            if "clear-teams" in form_data:
-                service.clear_teams()
-                return redirect("/admin")
-
-            if "generate-teams" in form_data:
-                service.generate_balanced_teams()
-                return redirect("/admin/teams-players")
-
-    with database_transaction() as (db, cursor):
-        repo = TeamRepository(cursor)
-        teams = repo.get_teams_with_players_connected()
-
-    return render_template("admin/teams-players.html", teams=teams)
-
-
-@views.route("/add-team", methods=["GET", "POST"])
-@handle_db_errors
-def render_add_team():
-    if request.method == "POST":
-        form_data = request.form.to_dict(flat=False)
-
-        if "save" in form_data:
-            with database_transaction() as (db, cursor):
-                team_data = {
-                    "name": form_data["name"][0],
-                    "side": form_data["side"][0],
+            return jsonify(
+                {
+                    "status": "success",
+                    "data": members,
                 }
+            )
 
-                print(team_data)
-
-                repo = TeamRepository(cursor)
-                repo.add_team(team_data)
-
-        with database_transaction() as (db, cursor):
-            print(form_data)
-
-    new_team = {
-        "name": "test",
-        "side": "CounterTerrorist",
-        "channel_id": 0,
-    }
-
-    return render_template("admin/add-team.html", team=new_team)
-
-
-@views.route("/generate_teams", methods=["GET", "POST"])
-@handle_db_errors
-def generate_teams():
-    if request.method == "POST":
-        with database_transaction() as (db, cursor):
-            service = TeamService(db, cursor)
-            service.generate_balanced_teams()
-            return redirect("/admin/teams-players")
-
-    return (
-        jsonify(
+    data = request.get_json()
+    if not data:
+        return jsonify(
             {
-                "message": "Successfully balanced teams Mayo/Ketchup",
+                "status": "error",
+                "error": "No data provided",
             }
-        ),
-        200,
-    )
+        )
+
+    try:
+        with database_transaction() as (db, cursor):
+            repo = MemberRepository(cursor)
+
+            # Handle batch updates
+            if isinstance(data, list):
+                for player_data in data:
+                    _validate_and_update_member(repo, player_data)
+            # Handle single member update
+            else:
+                _validate_and_update_member(repo, data)
+
+            return jsonify(
+                {
+                    "status": "success",
+                    "message": "Members updated successfully",
+                }
+            )
+
+    except json.JSONDecodeError:
+        return jsonify({"error": "Invalid JSON data", "status": "error"})
+    except ValueError as e:
+        return jsonify({"error": str(e), "status": "error"})

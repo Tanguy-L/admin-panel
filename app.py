@@ -1,5 +1,5 @@
-from flask import Flask, redirect
-from routes.views import admin
+from flask import Flask
+from routes.views.admin import api
 from dotenv import load_dotenv
 import os
 
@@ -8,12 +8,8 @@ load_dotenv()
 
 def create_app():
     app = Flask(__name__)
-    app.register_blueprint(admin.views)
+    app.register_blueprint(api, url_prefix="/api")
     app.config["DEBUG"] = False
-
-    @app.route("/")
-    def redirect_to_admin():
-        return redirect("/admin")
 
     return app
 
