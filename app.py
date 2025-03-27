@@ -3,9 +3,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 from flask_jwt_extended import JWTManager
-import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from routes.members import members_bp
 from routes.auth import auth_bp
 from routes.teams import teams_bp
@@ -15,10 +13,18 @@ load_dotenv()
 
 def create_app():
     app = Flask(__name__)
+    CORS(
+        app,
+        resources={
+            r"/*": {
+                "origins": "http://localhost:3000",
+                "allow_headers": ["Content-Type", "Authorization"],
+                "supports_credentials": True,
+            }
+        },
+    )
     app.config["JWT_SECRET_KEY"] = "super-secret"
     JWTManager(app)
-
-    CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}})
 
     app.register_blueprint(members_bp, url_prefix="/members")
     app.register_blueprint(auth_bp, url_prefix="/auth")

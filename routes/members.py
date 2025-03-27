@@ -43,9 +43,11 @@ def _validate_and_update_member(repo, player_data):
     return member_id
 
 
+@members_bp.route("", methods=["GET", "POST"])
 @members_bp.route("/", methods=["GET", "POST"])
 @jwt_required()
 def handle_members():
+    print(f"Preflight request headers: {request.headers}")
     """
     GET: Retrieve all members
     POST: Add one or multiple members
