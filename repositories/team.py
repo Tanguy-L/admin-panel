@@ -79,7 +79,7 @@ class TeamRepository:
             ),
         )
 
-    def get_all_teams(self) -> List[TeamDTO]:
+    def get_teams_and_players(self) -> List[TeamDTO]:
         # Get basic team info
         self.cursor.execute(
             """
@@ -105,6 +105,19 @@ class TeamRepository:
         players = self.cursor.fetchall()
 
         return self._aggregate_team_data(teams, players)
+
+    def get_all_teams(self) -> List[TeamDTO]:
+        # Get basic team info
+        self.cursor.execute(
+            """
+            SELECT team_id, name, channel_id, side, is_playing
+            FROM teams
+            ORDER BY team_id
+        """
+        )
+        teams = self.cursor.fetchall()
+
+        return teams
 
     def _aggregate_team_data(
         self, teams: List[Dict], players: List[Dict]
