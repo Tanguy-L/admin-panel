@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from functools import wraps
@@ -17,8 +18,11 @@ from mysql.connector import Error
 
 from core.database import close_db, get_db
 
-api = Blueprint("api", __name__)
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import jwt_required
 
+api = Blueprint("api", __name__)
 API_VERSION = "v1"
 
 
@@ -95,6 +99,18 @@ class MemberRepository:
     def __init__(self, cursor):
         self.cursor = cursor
 
+    def delete_member(self, member_id: int) -> bool:
+        """Delete a member from the database"""
+        # First, remove any team memberships
+        team_delete_query = "DELETE FROM team_members WHERE member_id = %s"
+        self.cursor.execute(team_delete_query, (member_id,))
+
+        # Then delete the member
+        query = "DELETE FROM members WHERE id = %s"
+        self.cursor.execute(query, (member_id,))
+
+        return self.cursor.rowcount > 0
+
     def get_all_members(self) -> List[Dict]:
         query = """
             SELECT
@@ -108,12 +124,48 @@ class MemberRepository:
         self.cursor.execute(query)
         return self.cursor.fetchall()
 
-    def update_member(self, member: Dict) -> None:
+    def add_member(self, member_data: Dict) -> int:
+        """Add a new member to the database"""
+        query = """
+            INSERT INTO members
+            (discord_id, discord_name, steam_id, weight,
+            smoke_color, is_logged_in)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        self.cursor.execute(
+            query,
+            (
+                member_data.get("discord_id"),
+                member_data.get("discord_name"),
+                member_data.get("steam_id"),
+                member_data.get("weight", 0),
+                member_data.get("smoke_color"),
+                member_data.get("is_logged_in", False),
+            ),
+        )
+        return self.cursor.lastrowid
+
+    def get_member_by_id(self, member_id: int) -> Optional[Dict]:
+        """Retrieve a member by their ID"""
+        query = """
+            SELECT
+                m.*, t.team_id, t.name as team_name,
+                t.channel_id as team_channel_id
+            FROM members m
+            LEFT JOIN team_members tm ON m.id = tm.member_id
+            LEFT JOIN teams t ON tm.team_id = t.team_id
+            WHERE m.id = %s
+        """
+        self.cursor.execute(query, (member_id,))
+        return self.cursor.fetchone()
+
+    def update_member(self, member: Dict, member_id: int) -> None:
         print(member)
         query = """
             UPDATE members
-            SET steam_id = %s, weight = %s, smoke_color = %s, is_logged_in = %s
-            WHERE discord_id = %s
+            SET steam_id = %s, weight = %s, smoke_color = %s,
+            is_logged_in = %s, discord_id= %s, discord_name = %s
+            WHERE id = %s
         """
         self.cursor.execute(
             query,
@@ -123,6 +175,8 @@ class MemberRepository:
                 member.get("smoke_color"),
                 member.get("is_logged_in"),
                 member.get("discord_id"),
+                member.get("discord_name"),
+                member_id,
             ),
         )
 
@@ -369,21 +423,45 @@ class TeamBalancer:
         return minTeam["id"]
 
 
+# ALL ROUTES
 # Version route
 @api.route("/", methods=["GET"])
 def get_version():
     return jsonify({"version": API_VERSION, "status": "running"})
 
 
+@api.route("/login", methods=["POST"])
+def login():
+    if request.json is None:
+        return jsonify({"msg": "No JSON data provided"}), 400
+
+    username = request.json.get("username")
+    password = request.json.get("password")
+
+    usernam_env = os.getenv("APP_USERNAME")
+    password_env = os.getenv("APP_PASSWORD")
+
+    if username is None or password is None:
+        return jsonify({"msg": "Missing username or password"}), 400
+
+    if username != usernam_env or password != password_env:
+        return jsonify({"msg": "Bad username or password"}), 401
+
+    access_token = create_access_token(identity=username)
+    return jsonify(access_token=access_token)
+
+
+@api.route("/protected", methods=["GET"])
+@jwt_required()
+def protected():
+    # Access the identity of the current user with get_jwt_identity
+    current_user = get_jwt_identity()
+    return jsonify(logged_in_as=current_user), 200
+
+
 def _validate_and_update_member(repo, player_data):
     """Helper function to validate and update a single member"""
-    required_fields = [
-        "discord_id",
-        "steam_id",
-        "weight",
-        "smoke_color",
-        "is_logged_in",
-    ]
+    required_fields = ["weight", "smoke_color", "is_logged_in", "discord_name"]
 
     # Check required fields
     for field in required_fields:
@@ -393,12 +471,17 @@ def _validate_and_update_member(repo, player_data):
     # Convert and validate data types
     try:
         validated_data = {
-            "discord_id": str(player_data["discord_id"]),
-            "steam_id": (
-                str(player_data["steam_id"])
-                if player_data["steam_id"]
+            "discord_id": (
+                str(player_data.get("discord_id", ""))
+                if player_data.get("discord_id")
                 else None
             ),
+            "steam_id": (
+                str(player_data.get("steam_id"))
+                if player_data.get("steam_id")
+                else None
+            ),
+            "discord_name": str(player_data["discord_name"]),
             "weight": float(player_data["weight"]),
             "smoke_color": str(player_data["smoke_color"]),
             "is_logged_in": bool(player_data["is_logged_in"]),
@@ -406,11 +489,180 @@ def _validate_and_update_member(repo, player_data):
     except (ValueError, TypeError) as e:
         raise ValueError(f"Invalid data format: {str(e)}")
 
-    repo.update_member(validated_data)
+    member_id = repo.add_member(validated_data)
+    return member_id
+
+
+@api.route("/members/<int:member_id>", methods=["PUT", "DELETE"])
+@jwt_required()
+@handle_db_errors
+def route_member_update(member_id) -> Response:
+    """DELETE MEMBER"""
+    if request.method == "DELETE":
+        try:
+            with database_transaction() as (db, cursor):
+                repo = MemberRepository(cursor)
+
+                # Check if member exists before deleting
+                existing_member = repo.get_member_by_id(member_id)
+                if not existing_member:
+                    return jsonify(
+                        {
+                            "status": "error",
+                            "error": f"Member with ID {member_id} not found",
+                        },
+                        404,
+                    )
+
+                # Delete the member
+                result = repo.delete_member(member_id)
+
+                return jsonify(
+                    {
+                        "status": "success",
+                        "message": "Member deleted successfully",
+                    }
+                )
+
+        except Exception as e:
+            return jsonify(
+                {"status": "error", "error": f"Unexpected error: {str(e)}"},
+                500,
+            )
+
+    """ UPDATE MEMBER """
+    data = request.get_json()
+    if not data:
+        return jsonify(
+            {
+                "status": "error",
+                "error": "No data provided",
+            },
+            400,
+        )
+
+    try:
+        with database_transaction() as (db, cursor):
+            repo = MemberRepository(cursor)
+
+            # Check if member exists before deleting
+            existing_member = repo.get_member_by_id(member_id)
+            if not existing_member:
+                return jsonify(
+                    {
+                        "status": "error",
+                        "error": f"Member with ID {member_id} not found",
+                    },
+                    404,
+                )
+            # Extract and validate fields
+            validated_data = {}
+
+            # Handle fields that can be updated
+            if "steam_id" in data:
+                validated_data["steam_id"] = (
+                    str(data["steam_id"]) if data["steam_id"] else None
+                )
+
+            if "weight" in data:
+                try:
+                    validated_data["weight"] = float(data["weight"])
+                except (ValueError, TypeError):
+                    return jsonify(
+                        {
+                            "status": "error",
+                            "error": "Weight must be a valid number",
+                        },
+                        422,
+                    )
+
+            if "smoke_color" in data:
+                validated_data["smoke_color"] = (
+                    str(data["smoke_color"]) if data["smoke_color"] else None
+                )
+
+            if "is_logged_in" in data:
+                validated_data["is_logged_in"] = bool(data["is_logged_in"])
+
+            # Required field for the existing update_member method
+            if "discord_id" in data:
+                validated_data["discord_id"] = str(data["discord_id"])
+
+            if "discord_name" in data:
+                validated_data["discord_name"] = str(data["discord_name"])
+
+            # If team_id is provided, update team membership
+            if "team_id" in data:
+                team_member_repo = TeamMemberRepository(cursor)
+
+                try:
+                    team_id = int(data["team_id"])
+                    # Check if team exists
+                    cursor.execute(
+                        "SELECT * FROM teams WHERE team_id = %s", (team_id,)
+                    )
+                    if not cursor.fetchone():
+                        return jsonify(
+                            {
+                                "status": "error",
+                                "error": f"Team with ID {team_id} not found",
+                            },
+                            404,
+                        )
+
+                    team_member_repo.update_team_member(member_id, team_id)
+
+                except (ValueError, TypeError):
+                    return jsonify(
+                        {
+                            "status": "error",
+                            "error": "Team ID must be a valid integer",
+                        },
+                        422,
+                    )
+
+            print(validated_data)
+
+            # Update member data
+            repo = MemberRepository(cursor)
+            repo.update_member(validated_data, member_id)
+
+            # Fetch updated member data to return
+            cursor.execute(
+                """
+                SELECT
+                    m.*, t.team_id, t.name as team_name,
+                    t.channel_id as team_channel_id
+                FROM members m
+                LEFT JOIN team_members tm ON m.id = tm.member_id
+                LEFT JOIN teams t ON tm.team_id = t.team_id
+                WHERE m.id = %s
+            """,
+                (member_id,),
+            )
+            updated_member = cursor.fetchone()
+
+            return jsonify(
+                {
+                    "status": "success",
+                    "message": "Member updated successfully",
+                    "data": updated_member,
+                }
+            )
+
+    except json.JSONDecodeError:
+        return jsonify({"status": "error", "error": "Invalid JSON data"})
+    except ValueError as e:
+        return jsonify({"status": "error", "error": str(e)})
+    except Exception as e:
+        return jsonify(
+            {"status": "error", "error": f"Unexpected error: {str(e)}"}
+        )
 
 
 # Members route
 @api.route("/members", methods=["GET", "POST"])
+@jwt_required()
 @handle_db_errors
 def handle_members() -> Response:
     if request.method == "GET":
@@ -425,6 +677,7 @@ def handle_members() -> Response:
                 }
             )
 
+    # POST
     data = request.get_json()
     if not data:
         return jsonify(
@@ -444,12 +697,21 @@ def handle_members() -> Response:
                     _validate_and_update_member(repo, player_data)
             # Handle single member update
             else:
-                _validate_and_update_member(repo, data)
+                id = _validate_and_update_member(repo, data)
+                print(id)
+
+                return jsonify(
+                    {
+                        "status": "success",
+                        "message": "Members added successfully",
+                        "member": id,
+                    }
+                )
 
             return jsonify(
                 {
                     "status": "success",
-                    "message": "Members updated successfully",
+                    "message": "Members added successfully",
                 }
             )
 
