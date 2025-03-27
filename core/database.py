@@ -1,4 +1,6 @@
 import mysql.connector
+import logging
+from contextlib import contextmanager
 from flask import g
 from dotenv import load_dotenv
 import os
@@ -30,3 +32,18 @@ def close_db(e=None):
         cursor.close()
     if db is not None:
         db.close()
+
+
+@contextmanager
+def database_transaction():
+    """Context manager for database transactions with automatic rollback"""
+    db, cursor = get_db()
+    try:
+        yield db, cursor
+        db.commit()
+    except Exception as e:
+        logging.error(f"db transactions error : {str(e)}")
+        db.rollback()
+        raise
+    finally:
+        close_db(db)
