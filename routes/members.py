@@ -85,7 +85,6 @@ def handle_members():
             # Handle single member update
             else:
                 id = _validate_and_update_member(repo, data)
-                print(id)
 
                 return jsonify(
                     {

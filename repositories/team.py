@@ -1,5 +1,5 @@
 from models.team import TeamDTO
-from typing import Dict, List
+from typing import Dict, List, Optional
 from core.config import TeamConfig
 
 
@@ -46,10 +46,11 @@ class TeamRepository:
         teams = self.cursor.fetchall()
         return teams
 
-    def add_team(self, team):
+    def add_team(self, team: Dict):
+        print(team)
         query = """
-            INSERT INTO teams (name, side)
-            VALUES (%s, %s)
+            INSERT INTO teams (name, side, channel_id, is_playing)
+            VALUES (%s, %s, %s, %s)
         """
 
         self.cursor.execute(
@@ -57,8 +58,12 @@ class TeamRepository:
             (
                 team.get("name"),
                 team.get("side"),
+                team.get("channel_id"),
+                team.get("is_playing"),
             ),
         )
+
+        return self.cursor.lastrowid
 
     def update_team(self, team):
         query = """
@@ -146,6 +151,28 @@ class TeamRepository:
                 )
 
         return list(team_map.values())
+
+    def delete_team(self, team_id: int) -> bool:
+        """Delete a member from the database"""
+        # First, remove any team memberships
+        team_delete_query = "DELETE FROM team_members WHERE team_id = %s"
+        self.cursor.execute(team_delete_query, (team_id,))
+
+        # Then delete the member
+        query = "DELETE FROM teams WHERE team_id = %s"
+        self.cursor.execute(query, (team_id,))
+
+        return self.cursor.rowcount > 0
+
+    def get_team_by_id(self, member_id: int) -> Optional[Dict]:
+        """Retrieve a member by their ID"""
+        query = """
+            SELECT *
+            FROM teams
+            WHERE team_id = %s
+        """
+        self.cursor.execute(query, (member_id,))
+        return self.cursor.fetchone()
 
     def get_no_team_id(self) -> int:
         self.cursor.execute(

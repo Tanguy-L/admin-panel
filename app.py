@@ -7,6 +7,7 @@ from flask_jwt_extended import JWTManager
 from routes.members import members_bp
 from routes.auth import auth_bp
 from routes.teams import teams_bp
+from routes.team_members import teams_members_bp
 
 load_dotenv()
 
@@ -29,6 +30,7 @@ def create_app():
     app.register_blueprint(members_bp, url_prefix="/members")
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(teams_bp, url_prefix="/teams")
+    app.register_blueprint(teams_members_bp, url_prefix="/team-members")
 
     app.config["DEBUG"] = False
 
