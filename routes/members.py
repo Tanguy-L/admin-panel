@@ -1,5 +1,5 @@
 import json
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import jwt_required
 
 from core.database import database_transaction
@@ -7,6 +7,11 @@ from repositories.member import MemberRepository
 from repositories.team_member import TeamMemberRepository
 
 members_bp = Blueprint("members", __name__)
+
+
+@members_bp.errorhandler(404)
+def resource_not_found(e):
+    return jsonify(error=str(e)), 404
 
 
 def _validate_and_update_member(repo, player_data):
@@ -41,6 +46,32 @@ def _validate_and_update_member(repo, player_data):
 
     member_id = repo.add_member(validated_data)
     return member_id
+
+
+@members_bp.route("/connection", methods=["PATCH"])
+@jwt_required()
+def handle_connection_members():
+    """
+    PATCH: Change all connections of players
+    """
+    if request.method == "PATCH":
+        data = request.get_json()
+
+        if not data:
+            abort(400, description="No data provided")
+
+        if "is_logged_in" in data:
+            with database_transaction() as (db, cursor):
+                repo = MemberRepository(cursor)
+                repo.toggle_connection_all(data["is_logged_in"])
+
+                return jsonify(
+                    {
+                        "status": "success",
+                    }
+                )
+        else:
+            abort(400, description="You have to provide is_logged_in")
 
 
 @members_bp.route("", methods=["GET", "POST"])
@@ -146,13 +177,7 @@ def route_member_update(member_id):
     """ UPDATE MEMBER """
     data = request.get_json()
     if not data:
-        return jsonify(
-            {
-                "status": "error",
-                "error": "No data provided",
-            },
-            400,
-        )
+        abort(400, description="No data provided")
 
     try:
         with database_transaction() as (db, cursor):
@@ -264,10 +289,10 @@ def route_member_update(member_id):
             )
 
     except json.JSONDecodeError:
-        return jsonify({"status": "error", "error": "Invalid JSON data"})
+        return jsonify({"status": "error", "error": "Invalid JSON data"}, 500)
     except ValueError as e:
-        return jsonify({"status": "error", "error": str(e)})
+        return jsonify({"status": "error", "error": str(e)}, 500)
     except Exception as e:
         return jsonify(
-            {"status": "error", "error": f"Unexpected error: {str(e)}"}
+            {"status": "error", "error": f"Unexpected error: {str(e)}"}, 500
         )

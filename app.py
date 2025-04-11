@@ -1,4 +1,5 @@
 from flask import Flask
+from datetime import timedelta
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
@@ -14,6 +15,7 @@ load_dotenv()
 
 def create_app():
     app = Flask(__name__)
+    app.url_map.strict_slashes = False
     CORS(
         app,
         resources={
@@ -25,6 +27,8 @@ def create_app():
         },
     )
     app.config["JWT_SECRET_KEY"] = "super-secret"
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(days=1)
+    app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
     JWTManager(app)
 
     app.register_blueprint(members_bp, url_prefix="/members")

@@ -1,6 +1,7 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import jwt_required
 
+import json
 from core.database import database_transaction
 from repositories.team import TeamRepository
 
@@ -10,6 +11,74 @@ teams_bp = Blueprint("teams", __name__)
 @teams_bp.route("/<int:team_id>", methods=["PUT", "DELETE"])
 @jwt_required()
 def handle_team(team_id):
+    if request.method == "PUT":
+        """UPDATE MEMBER"""
+        data = request.get_json()
+        if not data:
+            abort(400, description="No data provided")
+
+        try:
+            with database_transaction() as (db, cursor):
+                repo = TeamRepository(cursor)
+
+                # Check if member exists before deleting
+                existing_team = repo.get_team_by_id(team_id)
+                if not existing_team:
+                    return jsonify(
+                        {
+                            "status": "error",
+                            "error": f"Member with ID {data["id"]} not found",
+                        },
+                        404,
+                    )
+                # Extract and validate fields
+                validated_data = {}
+
+                # Handle fields that can be updated
+                if "name" in data:
+                    validated_data["name"] = (
+                        str(data["name"]) if data["name"] else None
+                    )
+
+                if "channel_id" in data:
+                    validated_data["channel_id"] = (
+                        str(data["channel_id"]) if data["channel_id"] else None
+                    )
+
+                if "is_playing" in data:
+                    validated_data["is_playing"] = data["is_playing"]
+
+                if "side" in data:
+                    validated_data["side"] = data["side"]
+
+                validated_data["id"] = team_id
+
+                print(validated_data)
+
+                # Update member data
+                repo.update_team(validated_data)
+
+                updated_member = repo.get_team_by_id(team_id)
+
+                return jsonify(
+                    {
+                        "status": "success",
+                        "message": "Member updated successfully",
+                        "data": updated_member,
+                    }
+                )
+
+        except json.JSONDecodeError:
+            return jsonify(
+                {"status": "error", "error": "Invalid JSON data"}, 500
+            )
+        except ValueError as e:
+            return jsonify({"status": "error", "error": str(e)}, 500)
+        except Exception as e:
+            return jsonify(
+                {"status": "error", "error": f"Unexpected error: {str(e)}"},
+                500,
+            )
     """DELETE TEAM"""
     if request.method == "DELETE":
         try:
@@ -45,6 +114,7 @@ def handle_team(team_id):
 
 
 @teams_bp.route("/", methods=["GET", "POST"])
+@teams_bp.route("", methods=["GET", "POST"])
 @jwt_required()
 def handle_teams_list():
     """

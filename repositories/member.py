@@ -18,6 +18,13 @@ class MemberRepository:
 
         return self.cursor.rowcount > 0
 
+    def toggle_connection_all(self, is_logged_in: int):
+        query = """
+            UPDATE members SET is_logged_in = %s
+        """
+
+        self.cursor.execute(query, (is_logged_in,))
+
     def get_all_members(self) -> List[Dict]:
         query = """
             SELECT
