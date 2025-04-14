@@ -4,6 +4,10 @@ from flask_jwt_extended import jwt_required
 import json
 from core.database import database_transaction
 from repositories.team import TeamRepository
+from repositories.member import MemberRepository
+from repositories.team_member import TeamMemberRepository
+from services.team_balancer import TeamBalancer
+from core.config import TeamConfig
 
 teams_bp = Blueprint("teams", __name__)
 
@@ -111,6 +115,92 @@ def handle_team(team_id):
                 {"status": "error", "error": f"Unexpected error: {str(e)}"},
                 500,
             )
+
+
+@teams_bp.route("/generate", methods=["POST"])
+@jwt_required()
+def generate_teams():
+    """
+    Generate balanced teams by distributing connected players based on weight
+    """
+    try:
+        with database_transaction() as (db, cursor):
+            team_repo = TeamRepository(cursor)
+            member_repo = MemberRepository(cursor)
+            team_member_repo = TeamMemberRepository(cursor)
+
+            # Get all teams that are playing, excluding NoTeam
+            playing_teams = [
+                team
+                for team in team_repo.get_teams_connected()
+                if team["name"] != TeamConfig.NO_TEAM_NAME
+            ]
+
+            if not playing_teams:
+                return (
+                    jsonify(
+                        {
+                            "status": "error",
+                            "error": "No active teams available for assignment",
+                        }
+                    ),
+                    400,
+                )
+
+            # Get all connected players with weight > MIN_WEIGHT
+            connected_players = member_repo.get_members_by_login_status(
+                is_logged_in=True
+            )
+
+            if not connected_players:
+                return (
+                    jsonify(
+                        {
+                            "status": "error",
+                            "error": "No connected players available for team assignment",
+                        }
+                    ),
+                    400,
+                )
+
+            # Initialize team balancer with playing teams
+            balancer = TeamBalancer(playing_teams)
+
+            # For each player, assign them to the most balanced team
+            assignments = []
+            for player in connected_players:
+                team_id = balancer.get_balanced_team(player["weight"])
+                team_member_repo.update_team_member(player["id"], team_id)
+                assignments.append(
+                    {
+                        "player_id": player["id"],
+                        "player_name": player["discord_name"],
+                        "weight": player["weight"],
+                        "assigned_team_id": team_id,
+                    }
+                )
+
+            # Get updated team data to return in the response
+            updated_teams = team_repo.get_teams_with_players_connected()
+
+            return jsonify(
+                {
+                    "status": "success",
+                    "message": "Teams have been generated successfully",
+                    "data": {
+                        "assignments": assignments,
+                        "teams": updated_teams,
+                    },
+                }
+            )
+
+    except Exception as e:
+        return (
+            jsonify(
+                {"status": "error", "error": f"Unexpected error: {str(e)}"}
+            ),
+            500,
+        )
 
 
 @teams_bp.route("/", methods=["GET", "POST"])
