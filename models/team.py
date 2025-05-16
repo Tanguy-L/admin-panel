@@ -9,6 +9,7 @@ class TeamDTO:
     side: Optional[str]
     is_playing: bool
     channel_id: Optional[str]
+    hostname: Optional[str]
     weight: float = 0
     players: List[Dict] = field(default_factory=list)
 

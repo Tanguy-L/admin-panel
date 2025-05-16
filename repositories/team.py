@@ -37,7 +37,7 @@ class TeamRepository:
     def get_teams_connected(self):
         self.cursor.execute(
             """
-            SELECT team_id, name, channel_id, side, is_playing
+            SELECT team_id, name, channel_id, side, is_playing, hostname
             FROM teams
             WHERE is_playing
             ORDER BY team_id
@@ -49,8 +49,8 @@ class TeamRepository:
     def add_team(self, team: Dict):
         print(team)
         query = """
-            INSERT INTO teams (name, side, channel_id, is_playing)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO teams (name, side, channel_id, is_playing, hostname)
+            VALUES (%s, %s, %s, %s, %s)
         """
 
         self.cursor.execute(
@@ -60,6 +60,7 @@ class TeamRepository:
                 team.get("side"),
                 team.get("channel_id"),
                 team.get("is_playing"),
+                team.get("hostname"),
             ),
         )
 
@@ -68,7 +69,9 @@ class TeamRepository:
     def update_team(self, team):
         query = """
             UPDATE teams
-            SET name = %s, side = %s,channel_id =NULLIF(%s, ''),
+            SET name = %s, side = %s,
+            channel_id = NULLIF(%s, ''),
+            hostname = NULLIF(%s, '')
             is_playing = %s
             WHERE team_id = %s
         """
@@ -80,6 +83,7 @@ class TeamRepository:
                 team.get("side"),
                 team.get("channel_id"),
                 team.get("is_playing"),
+                team.get("hostname"),
                 team.get("id"),
             ),
         )
@@ -115,7 +119,7 @@ class TeamRepository:
         # Get basic team info
         self.cursor.execute(
             """
-            SELECT team_id, name, channel_id, side, is_playing
+            SELECT team_id, name, channel_id, side, is_playing, hostname
             FROM teams
             ORDER BY team_id
         """
@@ -134,6 +138,7 @@ class TeamRepository:
                 channel_id=team["channel_id"],
                 side=team["side"],
                 is_playing=team["is_playing"],
+                hostname=team["hostname"],
             )
             for team in teams
         }

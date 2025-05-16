@@ -31,7 +31,7 @@ def handle_team(team_id):
                     return jsonify(
                         {
                             "status": "error",
-                            "error": f"Member with ID {data["id"]} not found",
+                            "error": f"Member with ID {data['id']} not found",
                         },
                         404,
                     )
@@ -40,9 +40,7 @@ def handle_team(team_id):
 
                 # Handle fields that can be updated
                 if "name" in data:
-                    validated_data["name"] = (
-                        str(data["name"]) if data["name"] else None
-                    )
+                    validated_data["name"] = str(data["name"]) if data["name"] else None
 
                 if "channel_id" in data:
                     validated_data["channel_id"] = (
@@ -54,6 +52,9 @@ def handle_team(team_id):
 
                 if "side" in data:
                     validated_data["side"] = data["side"]
+
+                if "hostname" in data:
+                    validated_data["hostname"] = data["hostname"]
 
                 validated_data["id"] = team_id
 
@@ -73,9 +74,7 @@ def handle_team(team_id):
                 )
 
         except json.JSONDecodeError:
-            return jsonify(
-                {"status": "error", "error": "Invalid JSON data"}, 500
-            )
+            return jsonify({"status": "error", "error": "Invalid JSON data"}, 500)
         except ValueError as e:
             return jsonify({"status": "error", "error": str(e)}, 500)
         except Exception as e:
@@ -196,9 +195,7 @@ def generate_teams():
 
     except Exception as e:
         return (
-            jsonify(
-                {"status": "error", "error": f"Unexpected error: {str(e)}"}
-            ),
+            jsonify({"status": "error", "error": f"Unexpected error: {str(e)}"}),
             500,
         )
 
@@ -251,11 +248,13 @@ def handle_teams_list():
             else:
                 validated_data["channel_id"] = None
 
+            if "hostname" in data:
+                validated_data["hostname"] = str(data["hostname"])
+            else:
+                validated_data["hostname"] = None
+
             if "side" in data:
-                if (
-                    data["side"] == "CounterTerrorist"
-                    or data["side"] == "Terrorist"
-                ):
+                if data["side"] == "CounterTerrorist" or data["side"] == "Terrorist":
                     validated_data["side"] = str(data["side"])
             else:
                 validated_data["side"] = None
