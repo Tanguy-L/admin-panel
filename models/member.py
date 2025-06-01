@@ -6,7 +6,7 @@ from typing import Optional
 class MemberDTO:
     id: int
     discord_id: str
-    discord_name: str
+    name: str
     steam_id: Optional[str]
     weight: float
     smoke_color: Optional[str]

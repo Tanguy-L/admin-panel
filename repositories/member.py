@@ -42,7 +42,7 @@ class MemberRepository:
         """Add a new member to the database"""
         query = """
             INSERT INTO members
-            (discord_id, discord_name, steam_id, weight,
+            (discord_id, name, steam_id, weight,
             smoke_color, is_logged_in)
             VALUES (%s, %s, %s, %s, %s, %s)
         """
@@ -50,7 +50,7 @@ class MemberRepository:
             query,
             (
                 member_data.get("discord_id"),
-                member_data.get("discord_name"),
+                member_data.get("name"),
                 member_data.get("steam_id"),
                 member_data.get("weight", 0),
                 member_data.get("smoke_color"),
@@ -77,7 +77,7 @@ class MemberRepository:
         query = """
             UPDATE members
             SET steam_id = %s, weight = %s, smoke_color = %s,
-            is_logged_in = %s, discord_id= %s, discord_name = %s
+            is_logged_in = %s, discord_id= %s, name = %s
             WHERE id = %s
         """
         self.cursor.execute(
@@ -88,7 +88,7 @@ class MemberRepository:
                 member.get("smoke_color"),
                 member.get("is_logged_in"),
                 member.get("discord_id"),
-                member.get("discord_name"),
+                member.get("name"),
                 member_id,
             ),
         )

@@ -16,7 +16,7 @@ def resource_not_found(e):
 
 def _validate_and_update_member(repo, player_data):
     """Helper function to validate and update a single member"""
-    required_fields = ["weight", "smoke_color", "is_logged_in", "discord_name"]
+    required_fields = ["weight", "smoke_color", "is_logged_in", "name"]
 
     # Check required fields
     for field in required_fields:
@@ -36,7 +36,7 @@ def _validate_and_update_member(repo, player_data):
                 if player_data.get("steam_id")
                 else None
             ),
-            "discord_name": str(player_data["discord_name"]),
+            "name": str(player_data["name"]),
             "weight": float(player_data["weight"]),
             "smoke_color": str(player_data["smoke_color"]),
             "is_logged_in": bool(player_data["is_logged_in"]),
@@ -226,8 +226,8 @@ def route_member_update(member_id):
             if "discord_id" in data:
                 validated_data["discord_id"] = str(data["discord_id"])
 
-            if "discord_name" in data:
-                validated_data["discord_name"] = str(data["discord_name"])
+            if "name" in data:
+                validated_data["name"] = str(data["name"])
 
             # If team_id is provided, update team membership
             if "team_id" in data:

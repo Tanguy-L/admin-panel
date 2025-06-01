@@ -10,7 +10,7 @@ class TeamRepository:
     def get_teams_with_players_connected(self):
         self.cursor.execute(
             """
-            SELECT team_id, name, channel_id, side, is_playing
+            SELECT team_id, name, channel_id, side, is_playing, hostname
             FROM teams
             WHERE is_playing
             ORDER BY team_id
@@ -23,11 +23,11 @@ class TeamRepository:
             """
             SELECT
                 t.team_id, t.name, m.id as player_id,
-                m.discord_name as player_name, m.weight as player_weight
+                m.name as player_name, m.weight as player_weight
             FROM teams t
             LEFT JOIN team_members tm ON t.team_id = tm.team_id
             LEFT JOIN members m ON m.id = tm.member_id
-            WHERE m.discord_name IS NOT NULL
+            WHERE m.name IS NOT NULL
         """
         )
         players = self.cursor.fetchall()
@@ -71,10 +71,11 @@ class TeamRepository:
             UPDATE teams
             SET name = %s, side = %s,
             channel_id = NULLIF(%s, ''),
-            hostname = NULLIF(%s, '')
+            hostname = NULLIF(%s, ''),
             is_playing = %s
             WHERE team_id = %s
         """
+        print(team)
 
         self.cursor.execute(
             query,
@@ -82,8 +83,8 @@ class TeamRepository:
                 team.get("name"),
                 team.get("side"),
                 team.get("channel_id"),
-                team.get("is_playing"),
                 team.get("hostname"),
+                team.get("is_playing"),
                 team.get("id"),
             ),
         )
@@ -104,11 +105,11 @@ class TeamRepository:
             """
             SELECT
                 t.team_id, t.name, m.id as player_id,
-                m.discord_name as player_name, m.weight as player_weight
+                m.name as player_name, m.weight as player_weight
             FROM teams t
             LEFT JOIN team_members tm ON t.team_id = tm.team_id
             LEFT JOIN members m ON m.id = tm.member_id
-            WHERE m.discord_name IS NOT NULL
+            WHERE m.name IS NOT NULL
         """
         )
         players = self.cursor.fetchall()

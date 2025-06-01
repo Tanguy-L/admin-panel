@@ -16,7 +16,7 @@ teams_bp = Blueprint("teams", __name__)
 @jwt_required()
 def handle_team(team_id):
     if request.method == "PUT":
-        """UPDATE MEMBER"""
+        """UPDATE Team"""
         data = request.get_json()
         if not data:
             abort(400, description="No data provided")
@@ -146,6 +146,8 @@ def generate_teams():
                     400,
                 )
 
+            print("test 1")
+
             # Get all connected players with weight > MIN_WEIGHT
             connected_players = member_repo.get_members_by_login_status(
                 is_logged_in=True
@@ -173,11 +175,13 @@ def generate_teams():
                 assignments.append(
                     {
                         "player_id": player["id"],
-                        "player_name": player["discord_name"],
+                        "player_name": player["name"],
                         "weight": player["weight"],
                         "assigned_team_id": team_id,
                     }
                 )
+
+            print("test 2")
 
             # Get updated team data to return in the response
             updated_teams = team_repo.get_teams_with_players_connected()
