@@ -12,6 +12,10 @@ from routes.team_members import teams_members_bp
 
 load_dotenv()
 
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+allowed_headers = os.getenv("ALLOWED_HEADERS", "Content-Type,Authorization").split(",")
+cors_credentials = os.getenv("CORS_CREDENTIALS", "true").lower()
+
 
 def create_app():
     app = Flask(__name__)
@@ -20,9 +24,9 @@ def create_app():
         app,
         resources={
             r"/*": {
-                "origins": "http://localhost:3000",
-                "allow_headers": ["Content-Type", "Authorization"],
-                "supports_credentials": True,
+                "origins": cors_origins,
+                "allow_headers": allowed_headers,
+                "supports_credentials": cors_credentials,
             }
         },
     )
