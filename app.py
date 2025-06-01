@@ -14,7 +14,7 @@ load_dotenv()
 
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 allowed_headers = os.getenv("ALLOWED_HEADERS", "Content-Type,Authorization").split(",")
-cors_credentials = os.getenv("CORS_CREDENTIALS", "true").lower()
+cors_credentials = os.getenv("CORS_CREDENTIALS", "true").lower() == True
 
 
 def create_app():
